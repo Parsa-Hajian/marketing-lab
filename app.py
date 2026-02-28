@@ -13,7 +13,7 @@ from engine.dna import (
     build_dna_layers,
 )
 from engine.calibration import calibrate_base, build_projections
-from engine.activity_log import log_login
+from engine.activity_log import log_login, log_action
 from engine.settings_store import load_settings
 from engine.i18n import t
 from views.dashboard import render_dashboard
