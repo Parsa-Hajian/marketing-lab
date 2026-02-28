@@ -10,7 +10,7 @@ _T = {
         "nav_settings":        "Settings",
         "nav_user_log":        "User Log",
         "nav_docs":            "Documentation",
-        "nav_forge":           "Brand Forge",
+        "nav_forge":           "Design New Brand",
         # Auth
         "full_name":           "Full Name",
         "username":            "Username",
@@ -77,7 +77,7 @@ _T = {
         "nav_settings":        "Impostazioni",
         "nav_user_log":        "Registro Attività",
         "nav_docs":            "Documentazione",
-        "nav_forge":           "Brand Forge",
+        "nav_forge":           "Design New Brand",
         # Auth
         "full_name":           "Nome Completo",
         "username":            "Nome Utente",
