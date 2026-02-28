@@ -186,7 +186,9 @@ section[data-testid="stSidebar"] [data-baseweb="radio"] svg {{ fill: var(--orang
     box-shadow: var(--shadow-hover);
     transform:  translateY(-1px);
 }}
-[data-testid="stMetricLabel"] {{
+[data-testid="stMetricLabel"],
+[data-testid="stMetricLabel"] p,
+[data-testid="stMetricLabel"] label {{
     color:          var(--text-3) !important;
     font-size:      0.65rem !important;
     font-weight:    700 !important;
