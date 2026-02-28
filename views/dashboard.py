@@ -294,7 +294,13 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
         s_cr  = s_q / s_c if s_c > 0 else 0
         s_aov = s_s / s_q if s_q > 0 else 0
 
-        # ── KPI Matrix 5 × (Needed / Before / After) ────────────────────────
+        # ── KPI Matrix — "Needed" parent + 5 child cards ────────────────────
+        st.markdown(
+            "<div style='margin:16px 0 6px;font-family:Inter,sans-serif;"
+            "font-size:0.7rem;font-weight:700;text-transform:uppercase;"
+            "letter-spacing:0.12em;color:#AAAAAA'>Needed</div>",
+            unsafe_allow_html=True,
+        )
         kpi_cols = st.columns(5)
         labels = ["Traffic", "Orders", "Revenue", "CR", "AOV"]
         needed = [needed_clicks, needed_qty, needed_sales, needed_cr, needed_aov]
@@ -302,7 +308,7 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
         after  = [s_c, s_q, s_s, s_cr, s_aov]
 
         for col, lbl, n_v, b_v, a_v in zip(kpi_cols, labels, needed, before, after):
-            col.metric(f"Needed {lbl}", _fmt(lbl, n_v))
+            col.metric(lbl, _fmt(lbl, n_v))
             col.caption(f"**Before:** {_fmt(lbl, b_v)}")
             if has_events:
                 delta = a_v - b_v
