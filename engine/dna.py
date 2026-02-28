@@ -91,9 +91,28 @@ def build_pure_dna(profiles, sel_brands, norm_weights):
         .reset_index()
     )
 
+    # Fallback: no "Overall" rows → synthesise from historical years
+    if m_overall.empty and not m_yrly_agg.empty:
+        m_overall = (
+            m_yrly_agg
+            .groupby("TimeIdx")
+            .agg({"idx_clicks": "median", "idx_cr": "median", "idx_aov": "median"})
+            .reset_index()
+        )
+
+    # Last resort: still empty (brand has no monthly profile at all)
+    if m_overall.empty:
+        m_overall = pd.DataFrame({
+            "TimeIdx":    list(range(1, 13)),
+            "idx_clicks": [1.0] * 12,
+            "idx_cr":     [1.0] * 12,
+            "idx_aov":    [1.0] * 12,
+        })
+
+    overall_weight = 1.0 if not norm_weights else 0.35
     pure_dna = m_overall.copy()
     for col in ["idx_clicks", "idx_cr", "idx_aov"]:
-        pure_dna[col] = m_overall[col] * 0.35
+        pure_dna[col] = m_overall[col] * overall_weight
         for y, w in norm_weights.items():
             y_data = m_yrly_agg[m_yrly_agg["Year"] == str(y)]
             if not y_data.empty:

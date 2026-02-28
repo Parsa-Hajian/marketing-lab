@@ -23,6 +23,7 @@ from views.brand_update import render_brand_update
 from views.user_log import render_user_log
 from views.settings import render_settings
 from views.docs import render_docs
+from views.brand_forge import render_brand_forge
 from utils.export import build_excel_report
 
 st.set_page_config(
@@ -466,7 +467,7 @@ st.sidebar.divider()
 
 # ── Navigation ────────────────────────────────────────────────────────────────
 _nav_keys = [
-    "nav_dashboard", "nav_sim_lab", "nav_add_brand",
+    "nav_dashboard", "nav_sim_lab", "nav_forge", "nav_add_brand",
     "nav_update_brand", "nav_settings", "nav_user_log", "nav_docs",
 ]
 _nav_labels = [t(k, _lang) for k in _nav_keys]
@@ -599,6 +600,7 @@ _subtitles = {
     t("nav_update_brand", _lang): t("sub_update_brand", _lang),
     t("nav_settings",     _lang): t("sub_settings",     _lang),
     t("nav_user_log",     _lang): t("sub_user_log",     _lang),
+    t("nav_forge",        _lang): t("sub_forge",        _lang),
     t("nav_docs",         _lang): t("sub_docs",         _lang),
 }
 st.markdown(
@@ -626,6 +628,8 @@ elif page == t("nav_sim_lab", _lang):
         t_start, t_end, pure_dna,
         settings=_settings,
     )
+elif page == t("nav_forge", _lang):
+    render_brand_forge(profiles)
 elif page == t("nav_add_brand", _lang):
     render_brand_add()
 elif page == t("nav_update_brand", _lang):

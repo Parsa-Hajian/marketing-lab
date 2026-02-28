@@ -10,6 +10,7 @@ _T = {
         "nav_settings":        "Settings",
         "nav_user_log":        "User Log",
         "nav_docs":            "Documentation",
+        "nav_forge":           "Brand Forge",
         # Auth
         "full_name":           "Full Name",
         "username":            "Username",
@@ -28,6 +29,7 @@ _T = {
         "sub_settings":        "Language, campaign defaults, and app configuration",
         "sub_user_log":        "Activity log — modifications and people who made them",
         "sub_docs":            "Models, formulas, assumptions, and complete usage guide",
+        "sub_forge":           "Synthesise a new brand from DNA inheritance, seasonal shaping, and volume targets",
         # Settings page
         "settings_language":   "Language",
         "settings_lang_en":    "English",
@@ -75,6 +77,7 @@ _T = {
         "nav_settings":        "Impostazioni",
         "nav_user_log":        "Registro Attività",
         "nav_docs":            "Documentazione",
+        "nav_forge":           "Brand Forge",
         # Auth
         "full_name":           "Nome Completo",
         "username":            "Nome Utente",
@@ -93,6 +96,7 @@ _T = {
         "sub_settings":        "Lingua, impostazioni predefinite campagne e configurazione",
         "sub_user_log":        "Registro attività — modifiche e chi le ha effettuate",
         "sub_docs":            "Modelli, formule, ipotesi e guida completa all'uso",
+        "sub_forge":           "Sintetizza un nuovo brand da DNA ereditato, stagionalità e obiettivi di volume",
         # Settings page
         "settings_language":   "Lingua",
         "settings_lang_en":    "Inglese",

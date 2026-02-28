@@ -209,7 +209,7 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
             if st.session_state.target_metric in m_opts else 0
         )
         st.session_state.target_metric = col_m1.selectbox(
-            "Final Target Metric", m_opts, index=default_idx)
+            "Final Target Metric", m_opts, index=default_idx, key="dash_met")
 
         volume_driver = "Traffic (Clicks)"
         if st.session_state.target_metric in ["Sales", "Quantity"]:
