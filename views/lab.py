@@ -106,6 +106,15 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
                 "type": "custom_drag", "level": res_level,
                 "target": cd_target, "lift": cd_lift, "scope": scope_val,
             })
+            log_action(
+                name=_user_name, username=_username,
+                action="DNA Drag",
+                details=(
+                    f"Brand: {', '.join(sel_brands)} | "
+                    f"Level: {res_level} | Target index: {cd_target} | "
+                    f"Multiplier: ×{cd_lift:.2f} | Scope: {scope_val}"
+                ),
+            )
             st.rerun()
 
         # ── Impact preview: Base vs Sim clicks ────────────────────────────
@@ -464,6 +473,7 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
                 actual_mode = "Absolute Volume" if "Absolute" in inj_mode else "Relative"
 
                 if st.button("💉 Inject Signature", key=f"inj_{sig['id']}"):
+                    inj_end = inj_date + timedelta(days=sig["duration"] - 1)
                     st.session_state.event_log.append({
                         "type":        "reapplied_shock",
                         "name":        sig["name"],
@@ -477,6 +487,19 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
                         "daily_pct_q": sig["daily_pct_q"],
                         "daily_pct_s": sig["daily_pct_s"],
                     })
+                    log_action(
+                        name=_user_name, username=_username,
+                        action="De-Shock Re-Injected",
+                        details=(
+                            f"Brand: {', '.join(sel_brands)} | "
+                            f"Signature: {sig['name']} | "
+                            f"Injection window: {inj_date} → {inj_end} ({sig['duration']}d) | "
+                            f"Mode: {actual_mode} | "
+                            f"Δ Clicks: +{int(sig['tot_delta_c']):,} | "
+                            f"Δ Orders: +{int(sig['tot_delta_q']):,} | "
+                            f"Δ Sales: +€{sig['tot_delta_s']:,.0f}"
+                        ),
+                    )
                     st.rerun()
 
             with d2:
@@ -612,6 +635,27 @@ def _render_audit(df, pure_dna, adj_c, adj_q, adj_s, t_start, t_end):
         else:
             act1.write("")
         if act2.button("❌", key=f"del_{i}"):
+            _ev_del = st.session_state.event_log[i]
+            _ev_type = _ev_del.get("type", "unknown")
+            _ev_det  = (
+                f"shape={_ev_del.get('shape','')}, "
+                f"{_ev_del.get('start','')}→{_ev_del.get('end','')}"
+                if _ev_type == "shock" else
+                f"level={_ev_del.get('level','')}, target={_ev_del.get('target','')}, ×{_ev_del.get('lift',1):.2f}"
+                if _ev_type == "custom_drag" else
+                f"name={_ev_del.get('name','')}"
+                if _ev_type == "reapplied_shock" else
+                str(_ev_del)
+            )
+            log_action(
+                name=_user_name, username=_username,
+                action="Event Deleted",
+                details=(
+                    f"Brand: {', '.join(sel_brands)} | "
+                    f"Type: {_ev_type} | {_ev_det} | "
+                    f"Position: #{i + 1} of {len(st.session_state.event_log)}"
+                ),
+            )
             st.session_state.event_log.pop(i)
             st.session_state.shift_target_idx = None
             st.rerun()
@@ -630,8 +674,22 @@ def _render_audit(df, pure_dna, adj_c, adj_q, adj_s, t_start, t_end):
                 "New Start Date", ev_s["start"], key="shift_new_start")
             sc1, sc2 = st.columns(2)
             if sc1.button("✅ Confirm Shift"):
+                _old_start = ev_s["start"]
+                _old_end   = ev_s["end"]
+                _new_end   = new_start_s + timedelta(days=dur_s)
                 st.session_state.event_log[idx_s]["start"] = new_start_s
-                st.session_state.event_log[idx_s]["end"]   = new_start_s + timedelta(days=dur_s)
+                st.session_state.event_log[idx_s]["end"]   = _new_end
+                log_action(
+                    name=_user_name, username=_username,
+                    action="Event Shifted",
+                    details=(
+                        f"Brand: {', '.join(sel_brands)} | "
+                        f"Shape: {ev_s.get('shape', ev_s.get('type', ''))} | "
+                        f"Old window: {_old_start} → {_old_end} | "
+                        f"New window: {new_start_s} → {_new_end} | "
+                        f"Duration: {dur_s + 1}d"
+                    ),
+                )
                 st.session_state.shift_target_idx = None
                 st.rerun()
             if sc2.button("✖ Cancel"):
@@ -640,6 +698,20 @@ def _render_audit(df, pure_dna, adj_c, adj_q, adj_s, t_start, t_end):
 
     st.markdown("---")
     if st.button("🗑️ Clear Entire Event Log"):
+        _ev_count    = len(st.session_state.event_log)
+        _ev_types    = {}
+        for _ev in st.session_state.event_log:
+            _t = _ev.get("type", "unknown")
+            _ev_types[_t] = _ev_types.get(_t, 0) + 1
+        _type_summary = ", ".join(f"{v}× {k}" for k, v in _ev_types.items())
+        log_action(
+            name=_user_name, username=_username,
+            action="Event Log Cleared",
+            details=(
+                f"Brand: {', '.join(sel_brands)} | "
+                f"Removed {_ev_count} event(s) | Types: {_type_summary or 'none'}"
+            ),
+        )
         st.session_state.event_log        = []
         st.session_state.shift_target_idx = None
         st.rerun()

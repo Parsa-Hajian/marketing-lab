@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 from utils.fmt import _fmt, color_neg
+from engine.activity_log import log_action
 
 # ── Consistent palette ─────────────────────────────────────────────────────────
 _C_BASE   = "#94a3b8"          # slate-grey baseline
@@ -271,6 +272,21 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
             st.session_state.gt_hist_metric = _gt_hist_metric
             st.session_state.gt_growth_pct  = _gt_growth_pct
             st.session_state.gt_vol_driver  = volume_driver
+            log_action(
+                name=st.session_state.get("_user_name", "Unknown"),
+                username=st.session_state.get("_username", ""),
+                action="Goal Tracker: Settings Saved",
+                details=(
+                    f"Brand: {', '.join(sel_brands)} | "
+                    f"Base year: {_gt_hist_year} | "
+                    f"Historical metric: {_gt_hist_metric} | "
+                    f"Growth %: {_gt_growth_pct:.1f}% | "
+                    f"Target metric: {st.session_state.target_metric} | "
+                    f"Target value: {st.session_state.target_val:,.2f} | "
+                    f"Period: {st.session_state.tgt_start} → {st.session_state.tgt_end} | "
+                    f"Volume driver: {volume_driver}"
+                ),
+            )
             st.toast("Goal Tracker settings saved.", icon="✅")
 
         df_tgt = df[

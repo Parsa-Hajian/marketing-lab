@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 from datetime import date
 
 from engine.brand_manager import save_brand
+from engine.activity_log import log_action
 from config import PROFILES_PATH, DATASET_PATH
 
 _TEMPLATE = "plotly_white"
@@ -115,6 +116,8 @@ def _generate_synthetic(dna: pd.DataFrame,
 
 def render_brand_forge(profiles: pd.DataFrame) -> None:
     """Render the Brand Forge page."""
+    _user_name = st.session_state.get("_user_name", "Unknown")
+    _username  = st.session_state.get("_username", "")
 
     # ── Section 1: DNA Source ─────────────────────────────────────────────────
     st.markdown("#### DNA Source")
@@ -250,6 +253,19 @@ def render_brand_forge(profiles: pd.DataFrame) -> None:
             st.session_state["forge_brand_name"] = new_brand_name.strip().lower()
 
             st.success(f"Generated **{len(raw_df):,} days** of synthetic data — ready to save.")
+            log_action(
+                name=_user_name, username=_username,
+                action="Brand Forge: Preview Generated",
+                details=(
+                    f"Draft name: {new_brand_name.strip().lower()} | "
+                    f"Primary DNA: {primary_brand} | "
+                    f"Blend: {f'{secondary_brand} @ {blend_weight:.0%}' if secondary_brand and blend_on else 'none'} | "
+                    f"Period: {data_start} → {data_end} | "
+                    f"Annual targets — Clicks: {annual_clicks:,} | "
+                    f"Orders: {annual_orders:,} | Revenue: €{annual_revenue:,} | "
+                    f"Noise σ: {noise_level:.2f} | Rows generated: {len(raw_df):,}"
+                ),
+            )
 
             # Preview chart
             fig_prev = go.Figure()
@@ -291,6 +307,19 @@ def render_brand_forge(profiles: pd.DataFrame) -> None:
                 overwrite=False,
             )
             if ok:
+                _raw = st.session_state["forge_raw_df"]
+                log_action(
+                    name=_user_name, username=_username,
+                    action="Brand Forge: Brand Saved",
+                    details=(
+                        f"Brand: {saved_name} | "
+                        f"Rows saved: {len(_raw):,} | "
+                        f"Date range: {_raw['Date'].min().date()} → {_raw['Date'].max().date()} | "
+                        f"Total clicks: {int(_raw['Clicks'].sum()):,} | "
+                        f"Total orders: {int(_raw['Quantity'].sum()):,} | "
+                        f"Total sales: €{_raw['Sales'].sum():,.0f}"
+                    ),
+                )
                 st.success(msg + "  Reload the app to use the new brand in the Dashboard.")
                 st.session_state.pop("forge_raw_df", None)
                 st.session_state.pop("forge_brand_name", None)

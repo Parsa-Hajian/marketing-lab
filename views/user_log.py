@@ -79,9 +79,13 @@ def render_user_log():
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Events",    f"{len(df):,}")
     col2.metric("Unique Users",    f"{df['Name'].nunique():,}")
-    _mod_actions = {"Add Brand", "Update Brand", "Replace Brand",
-                    "Campaign Injected", "DNA Swap", "DNA Drag",
-                    "De-Shock Extracted", "De-Shock Re-Injected"}
+    _mod_actions = {
+        "Add Brand", "Update Brand", "Replace Brand",
+        "Campaign Injected", "DNA Swap", "DNA Drag",
+        "De-Shock Extracted", "De-Shock Re-Injected",
+        "Event Deleted", "Event Shifted", "Event Log Cleared",
+        "Brand Forge: Brand Saved", "Settings: Save", "Settings: Apply Global Defaults",
+    }
     col3.metric("Modifications",
                 f"{df[df['Action'].isin(_mod_actions)].shape[0]:,}")
 
@@ -117,18 +121,32 @@ def render_user_log():
         border = "#E0E0E0"
         if action == "Login":
             border = "#10B981"
-        elif action in ("Add Brand",):
+        elif action == "Sign Out":
+            border = "#6B7280"
+        elif action in ("Add Brand", "Brand Forge: Brand Saved"):
             border = "#3B82F6"
         elif action in ("Update Brand", "Replace Brand"):
             border = "#F59E0B"
-        elif action in ("Campaign Injected",):
+        elif action == "Campaign Injected":
             border = "#F47920"
         elif action in ("DNA Swap", "DNA Drag"):
             border = "#8B5CF6"
         elif action in ("De-Shock Extracted", "De-Shock Re-Injected"):
             border = "#EF4444"
-        elif action.startswith("Settings"):
+        elif action in ("Event Deleted", "Event Log Cleared"):
+            border = "#DC2626"
+        elif action == "Event Shifted":
+            border = "#0EA5E9"
+        elif action.startswith("Settings") or action.startswith("Goal Tracker"):
             border = "#6366F1"
+        elif action == "Brand Forge: Preview Generated":
+            border = "#A78BFA"
+        elif action == "Page Navigation":
+            border = "#CBD5E1"
+        elif action == "Resolution Changed":
+            border = "#94A3B8"
+        elif action == "Brand Selection Changed":
+            border = "#64748B"
 
         with st.expander(f"{ts}  ·  **{action}**  ·  {name} ({uname})"):
             if action == "Login":

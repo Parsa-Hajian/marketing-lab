@@ -46,6 +46,8 @@ def _data_state_snapshot() -> str:
         "Add Brand", "Update Brand", "Replace Brand",
         "Campaign Injected", "DNA Swap", "DNA Drag",
         "De-Shock Extracted", "De-Shock Re-Injected",
+        "Event Deleted", "Event Shifted", "Event Log Cleared",
+        "Brand Forge: Brand Saved",
         "Settings: Save", "Settings: Apply Global Defaults",
     }
     if os.path.exists(LOG_PATH):

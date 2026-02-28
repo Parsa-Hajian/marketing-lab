@@ -418,6 +418,10 @@ if "ui_adj_c"         not in st.session_state: st.session_state.ui_adj_c        
 if "ui_adj_q"         not in st.session_state: st.session_state.ui_adj_q         = 0.0
 if "ui_adj_s"         not in st.session_state: st.session_state.ui_adj_s         = 0.0
 if "ui_sel_brands"    not in st.session_state: st.session_state.ui_sel_brands    = []
+# Activity-log change-detection sentinels
+if "_prev_page"       not in st.session_state: st.session_state._prev_page       = ""
+if "_prev_res_level"  not in st.session_state: st.session_state._prev_res_level  = ""
+if "_prev_sel_brands" not in st.session_state: st.session_state._prev_sel_brands = []
 
 # ─── DATA LOADING ──────────────────────────────────────────────────────────────
 @st.cache_data
@@ -483,6 +487,18 @@ _page_idx = st.sidebar.radio(
     label_visibility="collapsed",
 )
 page = _nav_labels[_page_idx]
+
+# ── Log page navigation ───────────────────────────────────────────────────────
+_prev_page = st.session_state._prev_page
+if _prev_page and page != _prev_page:
+    log_action(
+        name=st.session_state._user_name,
+        username=st.session_state._username,
+        action="Page Navigation",
+        details=f"From: {_prev_page} | To: {page}",
+    )
+st.session_state._prev_page = page
+
 st.sidebar.divider()
 
 _is_analytics = page in (t("nav_dashboard", _lang), t("nav_sim_lab", _lang))
@@ -494,6 +510,15 @@ if _is_analytics:
         "Granularity", ["Monthly", "Weekly", "Daily"], key="ui_res_level")
     time_col = ("Month"     if res_level == "Monthly"
                  else "Week" if res_level == "Weekly" else "DayOfYear")
+    _prev_res = st.session_state._prev_res_level
+    if _prev_res and res_level != _prev_res:
+        log_action(
+            name=st.session_state._user_name,
+            username=st.session_state._username,
+            action="Resolution Changed",
+            details=f"From: {_prev_res} | To: {res_level}",
+        )
+    st.session_state._prev_res_level = res_level
 
     st.sidebar.markdown(
         "<p style='font-size:0.75rem;font-weight:600;color:#555;margin:8px 0 2px;"
@@ -515,6 +540,23 @@ if _is_analytics:
         if select_all or chk:
             sel_brands.append(b)
     st.session_state.ui_sel_brands = sel_brands
+
+    _prev_brands = set(st.session_state._prev_sel_brands)
+    _curr_brands = set(sel_brands)
+    if _prev_brands and _curr_brands != _prev_brands:
+        _added   = sorted(_curr_brands - _prev_brands)
+        _removed = sorted(_prev_brands - _curr_brands)
+        _parts   = []
+        if _added:   _parts.append(f"Added: {', '.join(_added)}")
+        if _removed: _parts.append(f"Removed: {', '.join(_removed)}")
+        _parts.append(f"Active: {', '.join(sorted(_curr_brands))}")
+        log_action(
+            name=st.session_state._user_name,
+            username=st.session_state._username,
+            action="Brand Selection Changed",
+            details=" | ".join(_parts),
+        )
+    st.session_state._prev_sel_brands = sel_brands
 
     if not sel_brands:
         st.warning("Select at least one brand.")
@@ -587,6 +629,12 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 if st.sidebar.button(t("sign_out", _lang), use_container_width=True):
+    log_action(
+        name=st.session_state._user_name,
+        username=st.session_state._username,
+        action="Sign Out",
+        details=f"Session ended | Page was: {page}",
+    )
     st.session_state._auth_ok   = False
     st.session_state._user_name = ""
     st.session_state._username  = ""
