@@ -25,7 +25,12 @@ from views.settings import render_settings
 from views.docs import render_docs
 from utils.export import build_excel_report
 
-st.set_page_config(page_title="Tech Strategy Lab", layout="wide", page_icon="🧬")
+st.set_page_config(
+    page_title="Tech Strategy Lab",
+    layout="wide",
+    page_icon="🧬",
+    initial_sidebar_state="expanded",
+)
 
 # ─── CONSTANTS ─────────────────────────────────────────────────────────────────
 _USER   = "universitybox_2026"
