@@ -144,23 +144,23 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
             # Campaign shape first — default lift is looked up from settings
             c_shape = st.selectbox("Campaign Shape", list(EVENT_MAPPING.keys()), key="ev_shape")
 
-            # Load default for this shape (brand = first selected brand or __all__)
+            # Default lift from settings for this shape/brand combination.
+            # key=f"ev_str_{c_shape}" creates a fresh slider when shape changes,
+            # so the value auto-resets to the settings default without touching
+            # session_state from script body (which raises errors in Streamlit ≥1.36).
             _brand_for_default = sel_brands[0] if len(sel_brands) == 1 else "__all__"
-            _prev_shape = st.session_state.get("_prev_ev_shape")
-            if _prev_shape != c_shape:
-                st.session_state["ev_str_pct"] = get_campaign_default(
-                    settings, _brand_for_default, c_shape)
-                st.session_state["_prev_ev_shape"] = c_shape
+            _default_pct = get_campaign_default(settings, _brand_for_default, c_shape)
 
             c_str_pct = st.slider(
                 "Traffic Lift (%)",
-                min_value=-100, max_value=300, step=5,
-                key="ev_str_pct",
+                min_value=-100, max_value=300,
+                value=_default_pct,
+                step=5,
+                key=f"ev_str_{c_shape}",
                 help="Default loaded from Settings. Adjust as needed.",
             )
             c_str = c_str_pct / 100
 
-            _default_pct = get_campaign_default(settings, _brand_for_default, c_shape)
             if c_str_pct != _default_pct:
                 st.caption(f"Settings default for this shape: **{_default_pct}%**")
 
