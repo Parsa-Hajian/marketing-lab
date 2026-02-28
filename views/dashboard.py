@@ -48,6 +48,11 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
     if "tgt_end"       not in st.session_state: st.session_state.tgt_end       = None
     if "target_metric" not in st.session_state: st.session_state.target_metric = "Sales"
     if "target_val"    not in st.session_state: st.session_state.target_val    = 0.0
+    # Goal Tracker persistent settings
+    if "gt_hist_year"   not in st.session_state: st.session_state.gt_hist_year   = None
+    if "gt_hist_metric" not in st.session_state: st.session_state.gt_hist_metric = "sales"
+    if "gt_growth_pct"  not in st.session_state: st.session_state.gt_growth_pct  = 5.0
+    if "gt_vol_driver"  not in st.session_state: st.session_state.gt_vol_driver  = "Traffic (Clicks)"
 
     event_log  = st.session_state.event_log
     has_events = bool(event_log)
@@ -153,15 +158,33 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
             "cr": "CR", "aov": "AOV",
         }
 
+        # Shadow vars — hold current widget values for the Save button
+        _gt_hist_year   = st.session_state.gt_hist_year
+        _gt_hist_metric = st.session_state.gt_hist_metric
+        _gt_growth_pct  = st.session_state.gt_growth_pct
+
         if len(sel_brands) == 1:
             st.info(f"📈 **Single Brand Mode:** {sel_brands[0].title()}")
             brand_hist = yearly_kpis[yearly_kpis["brand"] == sel_brands[0]].sort_values("Year")
 
+            year_opts = brand_hist["Year"].unique().tolist()
+            saved_yr  = st.session_state.gt_hist_year
+            yr_idx    = year_opts.index(saved_yr) if saved_yr in year_opts else 0
+
+            met_opts  = ["sales", "quantity", "clicks", "cr", "aov"]
+            saved_met = st.session_state.gt_hist_metric
+            met_idx   = met_opts.index(saved_met) if saved_met in met_opts else 0
+
             h1, h2, h3 = st.columns(3)
-            hist_year         = h1.selectbox("Base Year", brand_hist["Year"].unique())
-            target_metric_raw = h2.selectbox(
-                "Historical Metric", ["sales", "quantity", "clicks", "cr", "aov"])
-            growth_pct        = h3.number_input("Growth vs Year (%)", value=5.0, step=1.0)
+            hist_year         = h1.selectbox("Base Year", year_opts, index=yr_idx)
+            target_metric_raw = h2.selectbox("Historical Metric", met_opts, index=met_idx)
+            growth_pct        = h3.number_input(
+                "Growth vs Year (%)", value=float(st.session_state.gt_growth_pct), step=1.0)
+
+            # Track for Save button
+            _gt_hist_year   = hist_year
+            _gt_hist_metric = target_metric_raw
+            _gt_growth_pct  = growth_pct
 
             fig_h = px.bar(
                 brand_hist, x="Year", y=target_metric_raw,
@@ -211,14 +234,16 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
         st.session_state.target_metric = col_m1.selectbox(
             "Final Target Metric", m_opts, index=default_idx, key="dash_met")
 
-        volume_driver = "Traffic (Clicks)"
+        volume_driver = st.session_state.gt_vol_driver
         if st.session_state.target_metric in ["Sales", "Quantity"]:
             d_opts = (
                 ["Traffic (Clicks)", "Conversion Rate (CR)", "Average Order Value (AOV)"]
                 if st.session_state.target_metric == "Sales"
                 else ["Traffic (Clicks)", "Conversion Rate (CR)"]
             )
-            volume_driver = col_m2.selectbox("Scale via:", d_opts)
+            saved_vd = st.session_state.gt_vol_driver
+            vd_idx   = d_opts.index(saved_vd) if saved_vd in d_opts else 0
+            volume_driver = col_m2.selectbox("Scale via:", d_opts, index=vd_idx)
 
         if st.session_state.target_metric == "CR":
             st.session_state.target_val = col_m3.number_input(
@@ -238,6 +263,15 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
                 value=float(calculated_target if len(sel_brands) == 1 else st.session_state.target_val),
                 step=1000.0,
             )
+
+        # ── Save Goal Tracker settings ───────────────────────────────────────
+        sv_col, _ = st.columns([1, 3])
+        if sv_col.button("💾 Save settings", key="gt_save", use_container_width=True):
+            st.session_state.gt_hist_year   = _gt_hist_year
+            st.session_state.gt_hist_metric = _gt_hist_metric
+            st.session_state.gt_growth_pct  = _gt_growth_pct
+            st.session_state.gt_vol_driver  = volume_driver
+            st.toast("Goal Tracker settings saved.", icon="✅")
 
         df_tgt = df[
             (df["Date"].dt.date >= st.session_state.tgt_start) &
