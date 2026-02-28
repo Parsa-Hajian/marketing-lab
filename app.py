@@ -16,11 +16,83 @@ from views.lab import render_lab
 
 st.set_page_config(page_title="Tech Strategy Lab", layout="wide", page_icon="🧬")
 
+# ─── GLOBAL CSS ─────────────────────────────────────────────────────────────────
+
+st.markdown("""
+<style>
+/* ── App background ── */
+[data-testid="stAppViewContainer"] { background: #f8f9fc; }
+
+/* ── Sidebar ── */
+[data-testid="stSidebar"] { background: #12124a; }
+[data-testid="stSidebar"] .stMarkdown,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] .stCaption,
+[data-testid="stSidebar"] p { color: #ccd0f0 !important; }
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 { color: #a0a8ff !important; }
+[data-testid="stSidebar"] .stRadio label { color: #ccd0f0 !important; }
+[data-testid="stSidebar"] hr { border-color: #2a2a70; }
+
+/* ── Title ── */
+h1 { color: #12124a; }
+h2 { color: #12124a; }
+h3 { color: #1e1e7a; }
+
+/* ── Tab strip ── */
+[data-baseweb="tab-list"] {
+    background: #eef0f8;
+    border-radius: 10px;
+    gap: 2px;
+    padding: 3px;
+}
+[data-baseweb="tab"] {
+    border-radius: 8px;
+    padding: 6px 18px;
+    font-weight: 500;
+    color: #444;
+}
+[aria-selected="true"] {
+    background: #12124a !important;
+    color: white !important;
+}
+
+/* ── Metric cards ── */
+[data-testid="stMetric"] {
+    background: white;
+    border-radius: 10px;
+    padding: 12px 16px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+    border-top: 3px solid #12124a;
+}
+
+/* ── Buttons ── */
+.stButton > button {
+    border-radius: 6px;
+    font-weight: 600;
+    transition: all 0.18s;
+}
+.stButton > button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.14);
+}
+
+/* ── Info/success/warning ── */
+[data-testid="stAlert"] { border-radius: 8px; }
+
+/* ── Expanders ── */
+[data-testid="stExpander"] {
+    border: 1px solid #e0e0ec;
+    border-radius: 8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ─── SESSION STATE ──────────────────────────────────────────────────────────────
 
 if "event_log"        not in st.session_state: st.session_state.event_log        = []
 if "shock_library"    not in st.session_state: st.session_state.shock_library    = []
-if "affect_future"    not in st.session_state: st.session_state.affect_future    = False
 if "shift_target_idx" not in st.session_state: st.session_state.shift_target_idx = None
 if "tgt_start"        not in st.session_state: st.session_state.tgt_start        = date(2026, 1, 1)
 if "tgt_end"          not in st.session_state: st.session_state.tgt_end          = date(2026, 12, 31)
@@ -46,7 +118,7 @@ def load_data():
     profiles["Year"] = profiles["Year"].astype(str)
     yearly_kpis = pd.read_csv(YEARLY_KPI_PATH)
     df_raw      = pd.read_csv(DATASET_PATH)
-    df_raw["Date"] = pd.to_datetime(df_raw["Date"])
+    df_raw["Date"]  = pd.to_datetime(df_raw["Date"])
     df_raw["brand"] = df_raw["brand"].str.strip().str.lower()
     return profiles, yearly_kpis, df_raw
 
@@ -125,12 +197,6 @@ trial_adj_s = st.session_state.ui_adj_s
 adj_c = c_val / (1 + trial_adj_c / 100) if (1 + trial_adj_c / 100) != 0 else c_val
 adj_q = q_val / (1 + trial_adj_q / 100) if (1 + trial_adj_q / 100) != 0 else q_val
 adj_s = s_val / (1 + trial_adj_s / 100) if (1 + trial_adj_s / 100) != 0 else s_val
-
-st.sidebar.markdown("---")
-st.session_state.affect_future = st.sidebar.checkbox(
-    "✨ Affect Future (Apply events to projections & Goal Tracker)",
-    value=st.session_state.affect_future,
-)
 
 # ─── DYNAMIC SIMILARITY ENGINE ─────────────────────────────────────────────────
 

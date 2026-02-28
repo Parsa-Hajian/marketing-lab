@@ -5,10 +5,45 @@ import plotly.express as px
 
 from utils.fmt import _fmt, color_neg
 
+# ── Consistent palette ─────────────────────────────────────────────────────────
+_C_BASE   = "#94a3b8"          # slate-grey baseline
+_C_SIM    = "#1a1a6b"          # navy simulation
+_C_BAND   = "rgba(26,26,107,0.12)"
+_C_TARGET = "#dc2626"          # red target
+_C_SHOCK  = "rgba(220,38,38,0.10)"   # shock window band
+_C_DNA    = "rgba(220,38,38,0.07)"   # dna-drag zone
+_TEMPLATE = "plotly_white"
+
+
+def _add_shock_markers(fig, event_log, y_ref="y"):
+    """Add semi-transparent vrect for every shock/reapplied_shock event."""
+    for ev in event_log:
+        if ev["type"] == "shock":
+            fig.add_vrect(
+                x0=str(ev["start"]), x1=str(ev["end"]),
+                fillcolor=_C_SHOCK, layer="below", line_width=0,
+                annotation_text=f"📣 {ev.get('shape','')[:8]}",
+                annotation_position="top left",
+                annotation=dict(font_size=10, font_color="#dc2626"),
+            )
+        elif ev["type"] == "reapplied_shock":
+            from datetime import timedelta
+            end_d = ev["new_start"] + timedelta(days=ev["duration"] - 1)
+            fig.add_vrect(
+                x0=str(ev["new_start"]), x1=str(end_d),
+                fillcolor="rgba(16,185,129,0.10)", layer="below", line_width=0,
+                annotation_text="💉",
+                annotation_position="top left",
+                annotation=dict(font_size=10),
+            )
+
 
 def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
                      base_cr, base_aov):
     """Render the Main Dashboard page (3 tabs)."""
+    event_log  = st.session_state.event_log
+    has_events = bool(event_log)
+
     tab1, tab2, tab3 = st.tabs([
         "📈 Projection Overview",
         "🎯 Goal Tracker",
@@ -30,55 +65,75 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
         for pfx in ["_Base", "_Sim", "_Base_Min", "_Base_Max", "_Sim_Min", "_Sim_Max"]:
             agg_df[f"CR{pfx}"] = (
                 (agg_df[f"Qty{pfx}"] / agg_df[f"Clicks{pfx}"])
-                .replace([float("inf"), float("-inf")], 0)
-                .fillna(0)
+                .replace([float("inf"), float("-inf")], 0).fillna(0)
             )
             agg_df[f"AOV{pfx}"] = (
                 (agg_df[f"Sales{pfx}"] / agg_df[f"Qty{pfx}"])
-                .replace([float("inf"), float("-inf")], 0)
-                .fillna(0)
+                .replace([float("inf"), float("-inf")], 0).fillna(0)
             )
 
         met = st.selectbox("Select View Metric", ["Sales", "Clicks", "Qty", "CR", "AOV"])
         fig = go.Figure()
 
-        if st.session_state.affect_future and st.session_state.event_log:
-            fig.add_trace(go.Scatter(
-                x=agg_df["Date"], y=agg_df[f"{met}_Base"],
-                mode="lines", line=dict(color="gray", dash="dot"),
-                name="Baseline (Before)"))
-            fig.add_trace(go.Scatter(
-                x=agg_df["Date"], y=agg_df[f"{met}_Sim_Max"],
-                mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
-            fig.add_trace(go.Scatter(
-                x=agg_df["Date"], y=agg_df[f"{met}_Sim_Min"],
-                mode="lines", line=dict(width=0),
-                fill="tonexty", fillcolor="rgba(0,0,128,0.15)",
-                name="+/- 15% Range (After)"))
-            fig.add_trace(go.Scatter(
-                x=agg_df["Date"], y=agg_df[f"{met}_Sim"],
-                mode="lines+markers", line=dict(color="navy", width=3),
-                name="Forecast (After Events)"))
-        else:
+        if has_events:
+            # Baseline confidence band
             fig.add_trace(go.Scatter(
                 x=agg_df["Date"], y=agg_df[f"{met}_Base_Max"],
                 mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
             fig.add_trace(go.Scatter(
                 x=agg_df["Date"], y=agg_df[f"{met}_Base_Min"],
                 mode="lines", line=dict(width=0),
-                fill="tonexty", fillcolor="rgba(128,128,128,0.15)",
-                name="+/- 15% Range (Baseline)"))
+                fill="tonexty", fillcolor="rgba(148,163,184,0.15)",
+                name="±15% Baseline Band"))
+            # Baseline line
             fig.add_trace(go.Scatter(
                 x=agg_df["Date"], y=agg_df[f"{met}_Base"],
-                mode="lines+markers", line=dict(color="gray", width=3),
+                mode="lines", line=dict(color=_C_BASE, dash="dot", width=2),
+                name="Baseline (Before)"))
+            # Sim confidence band
+            fig.add_trace(go.Scatter(
+                x=agg_df["Date"], y=agg_df[f"{met}_Sim_Max"],
+                mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
+            fig.add_trace(go.Scatter(
+                x=agg_df["Date"], y=agg_df[f"{met}_Sim_Min"],
+                mode="lines", line=dict(width=0),
+                fill="tonexty", fillcolor=_C_BAND,
+                name="±15% Forecast Band"))
+            # Sim line
+            fig.add_trace(go.Scatter(
+                x=agg_df["Date"], y=agg_df[f"{met}_Sim"],
+                mode="lines+markers", line=dict(color=_C_SIM, width=3),
+                name="Forecast (After Events)"))
+            # Event markers
+            _add_shock_markers(fig, event_log)
+        else:
+            # No events: show baseline only
+            fig.add_trace(go.Scatter(
+                x=agg_df["Date"], y=agg_df[f"{met}_Base_Max"],
+                mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
+            fig.add_trace(go.Scatter(
+                x=agg_df["Date"], y=agg_df[f"{met}_Base_Min"],
+                mode="lines", line=dict(width=0),
+                fill="tonexty", fillcolor="rgba(148,163,184,0.15)",
+                name="±15% Range"))
+            fig.add_trace(go.Scatter(
+                x=agg_df["Date"], y=agg_df[f"{met}_Base"],
+                mode="lines+markers", line=dict(color=_C_BASE, width=3),
                 name="Baseline (No Events)"))
 
         fig.update_layout(
-            template="plotly_white",
-            title=f"{res_level} Forecast: {met}",
+            template=_TEMPLATE,
+            title=dict(text=f"{res_level} Forecast: {met}", font=dict(size=18, color="#12124a")),
             xaxis_title="Date", yaxis_title=met,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            hovermode="x unified",
         )
         st.plotly_chart(fig, use_container_width=True)
+
+        if has_events:
+            st.caption(
+                f"Showing **{len(event_log)} event(s)** — shaded bands show campaign windows. "
+                "Go to ⚡ Lab → 📋 Audit to manage events.")
 
     # ── Tab 2: Goal Tracker ─────────────────────────────────────────────────
     with tab2:
@@ -103,9 +158,9 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
             fig_h = px.bar(
                 brand_hist, x="Year", y=target_metric_raw,
                 title=f"Historical {metric_map[target_metric_raw]}",
-                text_auto=".2s", color_discrete_sequence=["indigo"],
+                text_auto=".2s", color_discrete_sequence=["#1a1a6b"],
             )
-            fig_h.update_layout(template="plotly_white", height=300)
+            fig_h.update_layout(template=_TEMPLATE, height=300)
             c_ch, c_tb = st.columns([2, 1])
             with c_ch:
                 st.plotly_chart(fig_h, use_container_width=True)
@@ -241,8 +296,10 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
         for col, lbl, n_v, b_v, a_v in zip(kpi_cols, labels, needed, before, after):
             col.metric(f"Needed {lbl}", _fmt(lbl, n_v))
             col.caption(f"**Before:** {_fmt(lbl, b_v)}")
-            if st.session_state.affect_future:
-                col.caption(f"**After:** {_fmt(lbl, a_v)}")
+            if has_events:
+                delta = a_v - b_v
+                sign  = "+" if delta >= 0 else ""
+                col.caption(f"**After:** {_fmt(lbl, a_v)} *(Δ {sign}{_fmt(lbl, delta)})*")
 
         # ── Period-by-period chart + table ──────────────────────────────────
         agg_tgt = df_tgt.groupby(time_col).agg({
@@ -253,7 +310,7 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
 
         for col_n, total in [("Needed_Sales", needed_sales),
                               ("Needed_Qty",   needed_qty),
-                              ("Needed_Clicks",needed_clicks)]:
+                              ("Needed_Clicks", needed_clicks)]:
             base_c = col_n.replace("Needed_", "") + "_Base"
             bt     = agg_tgt[base_c].sum()
             agg_tgt[col_n] = total * (agg_tgt[base_c] / bt) if bt > 0 else 0
@@ -269,38 +326,43 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
         fig_ts = go.Figure()
         fig_ts.add_trace(go.Scatter(
             x=agg_tgt["Date"], y=agg_tgt[f"Needed_{gap_m}"],
-            mode="lines", line=dict(color="red", dash="dash"), name="Target"))
+            mode="lines", line=dict(color=_C_TARGET, dash="dash", width=2), name="Target"))
         fig_ts.add_trace(go.Scatter(
             x=agg_tgt["Date"], y=agg_tgt[f"{gap_m}_Base"],
-            mode="lines", line=dict(color="gray", dash="dot"), name="Before"))
-        if st.session_state.affect_future:
+            mode="lines", line=dict(color=_C_BASE, dash="dot", width=2), name="Before"))
+        if has_events:
             fig_ts.add_trace(go.Scatter(
                 x=agg_tgt["Date"], y=agg_tgt[f"{gap_m}_Sim"],
-                mode="lines+markers", line=dict(color="navy", width=2), name="After"))
+                mode="lines+markers", line=dict(color=_C_SIM, width=2), name="After"))
+            _add_shock_markers(fig_ts, event_log)
         fig_ts.update_layout(
-            template="plotly_white", height=350,
-            title=f"Needed vs Forecasted — {gap_m}")
+            template=_TEMPLATE, height=350,
+            title=dict(text=f"Needed vs Forecasted — {gap_m}", font=dict(color="#12124a")),
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
         st.plotly_chart(fig_ts, use_container_width=True)
 
         fig_gap = go.Figure()
         fig_gap.add_trace(go.Bar(
             x=agg_tgt["Date"], y=agg_tgt[f"Gap_{gap_m}_Base"],
-            name="Gap (Before)", marker_color="lightgray"))
-        if st.session_state.affect_future:
+            name="Gap (Before)", marker_color="#cbd5e1"))
+        if has_events:
             colors = [
-                "#ff4b4b" if v < 0 else "#21c354"
+                "#f87171" if v < 0 else "#4ade80"
                 for v in agg_tgt[f"Gap_{gap_m}_Sim"]
             ]
             fig_gap.add_trace(go.Bar(
                 x=agg_tgt["Date"], y=agg_tgt[f"Gap_{gap_m}_Sim"],
                 name="Gap (After)", marker_color=colors))
         fig_gap.update_layout(
-            template="plotly_white", barmode="group", height=280,
-            title=f"{gap_m} Surplus / Shortfall")
+            template=_TEMPLATE, barmode="group", height=280,
+            title=dict(text=f"{gap_m} Surplus / Shortfall", font=dict(color="#12124a")),
+        )
         st.plotly_chart(fig_gap, use_container_width=True)
 
-        # Data table — volumes only (no CR/AOV per spec)
-        if st.session_state.affect_future:
+        # Data table
+        if has_events:
             disp_cols = [
                 "Date",
                 "Needed_Sales",  "Sales_Base",  "Sales_Sim",  "Gap_Sales_Base",  "Gap_Sales_Sim",
@@ -338,27 +400,45 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
         }).reset_index()
 
         fig_dna = go.Figure()
-        for m, name in [("idx_clicks_pure", "Clicks"),
-                         ("idx_cr_pure", "CR"), ("idx_aov_pure", "AOV")]:
+        for m, name, color in [
+            ("idx_clicks_pure", "Clicks", "#94a3b8"),
+            ("idx_cr_pure",     "CR",     "#64748b"),
+            ("idx_aov_pure",    "AOV",    "#475569"),
+        ]:
             fig_dna.add_trace(go.Scatter(
                 x=dna_plot[time_col], y=dna_plot[m],
-                mode="lines", line=dict(dash="dot", width=1),
+                mode="lines", line=dict(dash="dot", width=1, color=color),
                 name=f"{name} (Pure)"))
 
-        if st.session_state.affect_future and st.session_state.event_log:
-            for m, name in [("idx_clicks_pretrial", "Clicks"),
-                             ("idx_cr_pretrial", "CR"), ("idx_aov_pretrial", "AOV")]:
+        if has_events:
+            for m, name, color in [
+                ("idx_clicks_pretrial", "Clicks", "#6366f1"),
+                ("idx_cr_pretrial",     "CR",     "#8b5cf6"),
+                ("idx_aov_pretrial",    "AOV",    "#a855f7"),
+            ]:
                 fig_dna.add_trace(go.Scatter(
                     x=dna_plot[time_col], y=dna_plot[m],
-                    mode="lines", line=dict(dash="dash"),
+                    mode="lines", line=dict(dash="dash", width=1.5, color=color),
                     name=f"{name} (Pre-Trial)"))
-            for m, name in [("idx_clicks_work", "Clicks"),
-                             ("idx_cr_work", "CR"), ("idx_aov_work", "AOV")]:
+            for m, name, color in [
+                ("idx_clicks_work", "Clicks", "#1a1a6b"),
+                ("idx_cr_work",     "CR",     "#1d4ed8"),
+                ("idx_aov_work",    "AOV",    "#2563eb"),
+            ]:
                 fig_dna.add_trace(go.Scatter(
                     x=dna_plot[time_col], y=dna_plot[m],
-                    mode="lines", name=f"{name} (Full Work)"))
+                    mode="lines+markers", line=dict(width=2, color=color),
+                    name=f"{name} (Work / After)"))
 
         fig_dna.update_layout(
-            template="plotly_white",
-            title=f"DNA Profile at {res_level} Resolution")
+            template=_TEMPLATE,
+            title=dict(text=f"DNA Profile at {res_level} Resolution", font=dict(color="#12124a")),
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
         st.plotly_chart(fig_dna, use_container_width=True)
+
+        if has_events:
+            dna_evs = [e for e in event_log if e["type"] in ("custom_drag", "swap")]
+            if dna_evs:
+                st.markdown(f"**{len(dna_evs)} DNA modification(s) active** — manage in ⚡ Lab → 📋 Audit")

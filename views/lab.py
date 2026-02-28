@@ -7,8 +7,20 @@ from datetime import date, timedelta
 import time
 
 from config import EVENT_MAPPING
-from engine.dna import _apply_dna_ev
+from engine.dna import _apply_dna_ev, _periods_from_range
 from engine.simulation import get_shock_multiplier, eval_events
+
+_C_BASE = "#94a3b8"
+_C_SIM  = "#1a1a6b"
+_TMPL   = "plotly_white"
+
+# ── Event type styling ─────────────────────────────────────────────────────────
+_EV_STYLE = {
+    "shock":          {"icon": "📣", "label": "Campaign",    "color": "#fef3c7", "border": "#f59e0b"},
+    "custom_drag":    {"icon": "🖱️", "label": "DNA Drag",    "color": "#ede9fe", "border": "#7c3aed"},
+    "swap":           {"icon": "🔄", "label": "DNA Swap",    "color": "#e0f2fe", "border": "#0284c7"},
+    "reapplied_shock":{"icon": "💉", "label": "Re-Injection","color": "#dcfce7", "border": "#16a34a"},
+}
 
 
 def render_lab(df, df_raw, sel_brands, res_level, time_col,
@@ -16,6 +28,12 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
                t_start, t_end, pure_dna):
     """Render the Event Simulation Lab page (4 tabs)."""
     st.header("Simulation Lab & DNA Editor")
+
+    n_ev = len(st.session_state.event_log)
+    if n_ev:
+        st.info(
+            f"**{n_ev} active event(s)** — all modifications are reflected in every chart. "
+            "Manage or delete in the 📋 Audit tab.")
 
     t_custom, t_events, t_deshock, t_log = st.tabs([
         "🖱️ Visual DNA Drag",
@@ -27,6 +45,7 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
     # ── Tab 1: Visual DNA Drag ──────────────────────────────────────────────
     with t_custom:
         st.subheader("Interactive DNA Sculpting")
+
         dna_plot = df.groupby(time_col).agg({
             "idx_clicks_pure": "mean",
             "idx_clicks_work": "mean",
@@ -35,14 +54,14 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
         fig_i = go.Figure()
         fig_i.add_trace(go.Scatter(
             x=dna_plot[time_col], y=dna_plot["idx_clicks_pure"],
-            mode="lines", line=dict(color="gray", dash="dot"),
+            mode="lines", line=dict(color=_C_BASE, dash="dot"),
             name="Pure DNA (Before)"))
         fig_i.add_trace(go.Scatter(
             x=dna_plot[time_col], y=dna_plot["idx_clicks_work"],
-            mode="lines+markers", line=dict(color="navy"),
+            mode="lines+markers", line=dict(color=_C_SIM),
             name="Sculpted DNA (After)"))
         fig_i.update_layout(
-            template="plotly_white",
+            template=_TMPL,
             title=f"Select & Sculpt {res_level} DNA",
             hovermode="x unified")
 
@@ -74,6 +93,30 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
             })
             st.rerun()
 
+        # ── Impact preview: Base vs Sim clicks ────────────────────────────
+        if st.session_state.event_log:
+            st.markdown("---")
+            st.markdown("##### Forecast Impact (Clicks)")
+            proj_plot = df.groupby(time_col).agg({
+                "Date": "first",
+                "Clicks_Base": "sum",
+                "Clicks_Sim":  "sum",
+            }).reset_index()
+            fig_imp = go.Figure()
+            fig_imp.add_trace(go.Scatter(
+                x=proj_plot["Date"], y=proj_plot["Clicks_Base"],
+                mode="lines", line=dict(color=_C_BASE, dash="dot", width=2),
+                name="Before"))
+            fig_imp.add_trace(go.Scatter(
+                x=proj_plot["Date"], y=proj_plot["Clicks_Sim"],
+                mode="lines+markers", line=dict(color=_C_SIM, width=2),
+                name="After"))
+            fig_imp.update_layout(
+                template=_TMPL, height=260,
+                margin=dict(l=0, r=0, t=30, b=0),
+                hovermode="x unified")
+            st.plotly_chart(fig_imp, use_container_width=True)
+
     # ── Tab 2: Events ───────────────────────────────────────────────────────
     with t_events:
         col_c, col_s = st.columns(2)
@@ -96,7 +139,9 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
                               "str": c_str, "shape": c_shape}]))
                 fig_p = px.area(
                     p_df, x="Date", y="Multiplier",
-                    title=f"{c_shape} — {c_str*100:.0f}% Lift Profile")
+                    title=f"{c_shape} — {c_str*100:.0f}% Lift Profile",
+                    color_discrete_sequence=[_C_SIM],
+                )
                 fig_p.update_layout(height=220, margin=dict(l=0, r=0, t=30, b=0))
                 st.plotly_chart(fig_p, use_container_width=True)
 
@@ -109,19 +154,48 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
 
         with col_s:
             st.subheader("Swap Time Periods")
-            swap_a = st.number_input(f"{res_level} A", min_value=1, value=1)
-            swap_b = st.number_input(f"{res_level} B", min_value=1, value=2)
+            st.caption(
+                "Pick **any date range** for each period. The engine maps them to the "
+                f"correct {res_level.lower()} indices automatically.")
+
+            sa1, sa2 = st.columns(2)
+            swap_a_start = sa1.date_input(
+                "Period A — Start", date(t_start.year, 1, 1), key="swap_a_start")
+            swap_a_end   = sa2.date_input(
+                "Period A — End",   date(t_start.year, 1, 31), key="swap_a_end")
+
+            sb1, sb2 = st.columns(2)
+            swap_b_start = sb1.date_input(
+                "Period B — Start", date(t_start.year, 7, 1), key="swap_b_start")
+            swap_b_end   = sb2.date_input(
+                "Period B — End",   date(t_start.year, 7, 31), key="swap_b_end")
+
+            # Show derived period indices
+            t_col_swap = ("Month" if res_level == "Monthly"
+                          else "Week" if res_level == "Weekly" else "DayOfYear")
+            a_periods = _periods_from_range(swap_a_start, swap_a_end, t_col_swap)
+            b_periods = _periods_from_range(swap_b_start, swap_b_end, t_col_swap)
+            st.caption(
+                f"A → {res_level} indices: **{a_periods}**  ↔  "
+                f"B → **{b_periods}** ({min(len(a_periods), len(b_periods))} pair(s))")
+
             swap_sc = st.radio(
                 "When to apply",
                 ["Pre-Trial (affects calibration)", "Post-Trial (projection only)"],
                 key="swap_scope")
             swap_scope = "pre_trial" if "Pre" in swap_sc else "post_trial"
+
             if st.button("🔄 Execute DNA Swap"):
-                st.session_state.event_log.append({
-                    "type": "swap", "level": res_level,
-                    "a": swap_a, "b": swap_b, "scope": swap_scope,
-                })
-                st.rerun()
+                if not a_periods or not b_periods:
+                    st.error("Invalid date ranges — no periods found.")
+                else:
+                    st.session_state.event_log.append({
+                        "type": "swap", "level": res_level,
+                        "a_start": swap_a_start, "a_end": swap_a_end,
+                        "b_start": swap_b_start, "b_end": swap_b_end,
+                        "scope": swap_scope,
+                    })
+                    st.rerun()
 
     # ── Tab 3: De-Shock Tool & Signature Library ────────────────────────────
     with t_deshock:
@@ -137,7 +211,6 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
 def _render_deshock(df, df_raw, sel_brands, t_start):
     st.subheader("🧹 Isolate & Extract Historical Shocks")
 
-    # Data coverage info
     available_start = df_raw[df_raw["brand"].isin(sel_brands)]["Date"].min()
     available_end   = df_raw[df_raw["brand"].isin(sel_brands)]["Date"].max()
     if pd.isna(available_start):
@@ -150,7 +223,6 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
     )
 
     col1, col2 = st.columns(2)
-    # Sensible defaults: last November within data range
     default_yr   = available_end.year if available_end.month >= 11 else available_end.year - 1
     default_yr   = max(default_yr, available_start.year)
     ds_start_def = date(default_yr, 11, 20)
@@ -163,7 +235,6 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
         st.error("Start must be before End.")
         return
 
-    # Validate against available data
     if pd.Timestamp(ds_start) > available_end or pd.Timestamp(ds_end) < available_start:
         st.warning(
             f"Selected window ({ds_start} → {ds_end}) is outside available data range "
@@ -171,11 +242,9 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
         )
         return
 
-    # Context window ±14 calendar days
     ctx_start = ds_start - timedelta(days=14)
     ctx_end   = ds_end   + timedelta(days=14)
 
-    # Filter from super_dataset.csv (real daily observed values)
     ctx_mask = (
         df_raw["brand"].isin(sel_brands) &
         (df_raw["Date"] >= pd.Timestamp(ctx_start)) &
@@ -201,7 +270,6 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
         st.warning("No data in the shock window itself (context window has data).")
         return
 
-    # Organic floor — 10th percentile of shock window (per spec)
     floor_c = shock_raw["clicks"].quantile(0.10)
     floor_q = shock_raw["quantity"].quantile(0.10)
     floor_s = shock_raw["sales"].quantile(0.10)
@@ -214,8 +282,8 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
     fig_ds = go.Figure()
     fig_ds.add_trace(go.Scatter(
         x=ctx_raw["Date"], y=ctx_raw["clicks"],
-        mode="lines", name="Historical Traffic", line=dict(color="gray")))
-    # Shade shock delta area
+        mode="lines", name="Historical Traffic",
+        line=dict(color=_C_BASE)))
     fig_ds.add_trace(go.Scatter(
         x=shock_raw["Date"], y=shock_raw["clicks"],
         mode="lines", showlegend=False, line=dict(color="rgba(0,0,0,0)")))
@@ -225,20 +293,14 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
         fillcolor="rgba(33,195,84,0.4)",
         line=dict(color="rgba(0,0,0,0)"),
         name="Extracted Shock Delta"))
-    # Organic floor line
-    fig_ds.add_shape(
-        type="line",
-        x0=str(ds_start), x1=str(ds_end),
-        y0=floor_c, y1=floor_c,
-        line=dict(color="red", dash="dash"),
-    )
     fig_ds.add_trace(go.Scatter(
         x=[ds_start, ds_end], y=[floor_c, floor_c],
         mode="lines", name="Organic Floor (10th pct)",
-        line=dict(color="red", dash="dash")))
+        line=dict(color="#dc2626", dash="dash")))
     fig_ds.update_layout(
-        template="plotly_white", height=320,
-        title="De-Shock Isolation View (+/- 14-day context window)")
+        template=_TMPL, height=320,
+        title="De-Shock Isolation View (+/- 14-day context window)",
+        hovermode="x unified")
     st.plotly_chart(fig_ds, use_container_width=True)
 
     tot_delta_c = shock_raw["delta_c"].sum()
@@ -250,7 +312,6 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
         st.warning("No significant shock detected above the organic floor in this window.")
         return
 
-    # ── Forensic Details ──
     organic_cr = floor_q / floor_c if floor_c > 0 else 0
     event_cr   = tot_delta_q / tot_delta_c if tot_delta_c > 0 else 0
     cr_delta   = event_cr - organic_cr
@@ -325,11 +386,11 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
 
                 if st.button("💉 Inject Signature", key=f"inj_{sig['id']}"):
                     st.session_state.event_log.append({
-                        "type":       "reapplied_shock",
-                        "name":       sig["name"],
-                        "mode":       actual_mode,
-                        "new_start":  inj_date,
-                        "duration":   sig["duration"],
+                        "type":        "reapplied_shock",
+                        "name":        sig["name"],
+                        "mode":        actual_mode,
+                        "new_start":   inj_date,
+                        "duration":    sig["duration"],
                         "daily_abs_c": sig["daily_abs_c"],
                         "daily_abs_q": sig["daily_abs_q"],
                         "daily_abs_s": sig["daily_abs_s"],
@@ -353,11 +414,11 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
                     fig_pv = go.Figure()
                     fig_pv.add_trace(go.Bar(
                         x=df_pv["Date"], y=df_pv["Inj"],
-                        name="Injected Clicks", marker_color="navy"))
+                        name="Injected Clicks", marker_color=_C_SIM))
                     fig_pv.add_trace(go.Scatter(
                         x=df_pv["Date"], y=df_pv["Clicks_Base"],
                         mode="lines", name="Baseline",
-                        line=dict(color="gray", dash="dot")))
+                        line=dict(color=_C_BASE, dash="dot")))
                     fig_pv.update_layout(
                         barmode="overlay", height=250,
                         margin=dict(l=0, r=0, t=30, b=0),
@@ -374,10 +435,10 @@ def _render_audit(df, pure_dna, adj_c, adj_q, adj_s, t_start, t_end):
         st.info("No events logged yet.")
         return
 
-    tgt_met    = ("Sales"
-                  if st.session_state.target_metric in ["CR", "AOV"]
-                  else st.session_state.target_metric)
-    base_vol   = eval_events(
+    tgt_met  = ("Sales"
+                 if st.session_state.target_metric in ["CR", "AOV"]
+                 else st.session_state.target_metric)
+    base_vol = eval_events(
         [], pure_dna=pure_dna, adj_c=adj_c, adj_q=adj_q, adj_s=adj_s,
         t_start=t_start, t_end=t_end,
         tgt_start=st.session_state.tgt_start, tgt_end=st.session_state.tgt_end,
@@ -399,7 +460,8 @@ def _render_audit(df, pure_dna, adj_c, adj_q, adj_s, t_start, t_end):
     st.markdown("---")
 
     for i, ev in enumerate(st.session_state.event_log):
-        cols = st.columns([0.5, 1.5, 3.5, 2, 2, 0.7, 0.7])
+        sty = _EV_STYLE.get(ev["type"], {"icon": "•", "label": ev["type"],
+                                          "color": "#f1f5f9", "border": "#64748b"})
 
         vol_prev = eval_events(
             st.session_state.event_log[:i],
@@ -414,39 +476,63 @@ def _render_audit(df, pure_dna, adj_c, adj_q, adj_s, t_start, t_end):
             tgt_start=st.session_state.tgt_start, tgt_end=st.session_state.tgt_end,
         )[tgt_met]
         added   = vol_curr - vol_prev
-        pct_gap = (added / total_gap) * 100
+        pct_gap = (added / total_gap) * 100 if total_gap else 0
 
+        # Event description
         if ev["type"] == "shock":
-            cols[0].write("🚀"); cols[1].write("Campaign")
-            cols[2].write(f"{ev['shape']} | {ev['str']*100:.0f}% | {ev['start']} → {ev['end']}")
-            cols[3].write("Post-Trial")
+            desc = f"{ev.get('shape','?')} | {ev['str']*100:.0f}% | {ev['start']} → {ev['end']}"
+            scope_txt = "Post-Trial"
         elif ev["type"] == "custom_drag":
-            cols[0].write("🖱️"); cols[1].write("DNA Drag")
-            cols[2].write(f"{ev.get('level','?')} {ev['target']} × {ev['lift']:.2f}")
-            cols[3].write(ev.get("scope", "post_trial").replace("_", " ").title())
+            desc = f"{ev.get('level','?')} {ev['target']} × {ev['lift']:.2f}"
+            scope_txt = ev.get("scope", "post_trial").replace("_", " ").title()
         elif ev["type"] == "swap":
-            cols[0].write("🔄"); cols[1].write("DNA Swap")
-            cols[2].write(f"{ev.get('level','?')} {ev['a']} ↔ {ev['b']}")
-            cols[3].write(ev.get("scope", "post_trial").replace("_", " ").title())
+            if "a_start" in ev:
+                desc = f"{ev.get('level','?')}  {ev['a_start']}–{ev['a_end']} ↔ {ev['b_start']}–{ev['b_end']}"
+            else:
+                desc = f"{ev.get('level','?')} {ev['a']} ↔ {ev['b']}"
+            scope_txt = ev.get("scope", "post_trial").replace("_", " ").title()
         elif ev["type"] == "reapplied_shock":
-            cols[0].write("💉"); cols[1].write("Re-Injection")
-            cols[2].write(f"{ev['name']} | {ev['mode']} | from {ev['new_start']}")
-            cols[3].write("Post-Trial")
-
-        if added >= 0:
-            cols[4].success(f"+{added:,.0f} ({pct_gap:.1f}%)")
+            desc = f"{ev['name']} | {ev['mode']} | from {ev['new_start']}"
+            scope_txt = "Post-Trial"
         else:
-            cols[4].error(f"{added:,.0f} ({pct_gap:.1f}%)")
+            desc = str(ev); scope_txt = ""
 
-        # Shift button for standard shocks
+        delta_color = "#16a34a" if added >= 0 else "#dc2626"
+        sign        = "+" if added >= 0 else ""
+
+        st.markdown(
+            f"""<div style="
+                background:{sty['color']};
+                border-left:4px solid {sty['border']};
+                border-radius:8px;
+                padding:10px 14px;
+                margin-bottom:8px;
+                display:flex;
+                align-items:center;
+                gap:12px;
+            ">
+              <span style="font-size:1.3em">{sty['icon']}</span>
+              <div style="flex:1">
+                <strong>{sty['label']}</strong>
+                <span style="color:#475569;font-size:0.9em;margin-left:8px">{desc}</span>
+                <span style="color:#94a3b8;font-size:0.82em;margin-left:8px">({scope_txt})</span>
+              </div>
+              <span style="color:{delta_color};font-weight:700;font-size:1.05em">
+                {sign}{added:,.0f} ({pct_gap:.1f}%)
+              </span>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+
+        # Action row
+        act1, act2, act3 = st.columns([1, 1, 6])
         if ev["type"] == "shock":
-            if cols[5].button("↔", key=f"shift_{i}", help="Shift dates"):
+            if act1.button("↔ Shift", key=f"shift_{i}"):
                 st.session_state.shift_target_idx = i
                 st.rerun()
         else:
-            cols[5].write("")
-
-        if cols[6].button("❌", key=f"del_{i}"):
+            act1.write("")
+        if act2.button("❌", key=f"del_{i}"):
             st.session_state.event_log.pop(i)
             st.session_state.shift_target_idx = None
             st.rerun()
@@ -459,7 +545,8 @@ def _render_audit(df, pure_dna, adj_c, adj_q, adj_s, t_start, t_end):
             dur_s = (ev_s["end"] - ev_s["start"]).days
             st.markdown("---")
             st.markdown(
-                f"**Shifting:** {ev_s['shape']} shock ({ev_s['start']} → {ev_s['end']})")
+                f"**Shifting:** {ev_s.get('shape','')} shock "
+                f"({ev_s['start']} → {ev_s['end']})")
             new_start_s = st.date_input(
                 "New Start Date", ev_s["start"], key="shift_new_start")
             sc1, sc2 = st.columns(2)

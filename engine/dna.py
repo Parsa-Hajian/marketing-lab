@@ -2,6 +2,17 @@ import pandas as pd
 import numpy as np
 
 
+def _periods_from_range(start_d, end_d, t_col):
+    """Return sorted unique period indices covered by [start_d, end_d]."""
+    dates = pd.date_range(start=start_d, end=end_d)
+    if t_col == "Month":
+        return sorted(dates.month.unique().tolist())
+    elif t_col == "Week":
+        return sorted(set(int(w) for w in dates.isocalendar().week))
+    else:  # DayOfYear
+        return sorted(dates.dayofyear.unique().tolist())
+
+
 def _apply_dna_ev(df, ev, suffix):
     """Apply a custom_drag or swap event to idx_*_{suffix} columns in df (in-place)."""
     lv    = ev.get("level", "Monthly")
@@ -14,11 +25,24 @@ def _apply_dna_ev(df, ev, suffix):
             df.loc[mask, c] *= ev["lift"]
 
     elif ev["type"] == "swap":
-        ma, mb = df[t_col] == ev["a"], df[t_col] == ev["b"]
-        for c in cols:
-            av, bv = df.loc[ma, c].mean(), df.loc[mb, c].mean()
-            df.loc[ma, c] = df.loc[ma, c] * (bv / av) if av > 0 else bv
-            df.loc[mb, c] = df.loc[mb, c] * (av / bv) if bv > 0 else av
+        # Date-range format: a_start/a_end/b_start/b_end
+        if "a_start" in ev:
+            a_periods = _periods_from_range(ev["a_start"], ev["a_end"], t_col)
+            b_periods = _periods_from_range(ev["b_start"], ev["b_end"], t_col)
+            for pa, pb in zip(a_periods, b_periods):
+                ma, mb = df[t_col] == pa, df[t_col] == pb
+                for c in cols:
+                    av = df.loc[ma, c].mean()
+                    bv = df.loc[mb, c].mean()
+                    df.loc[ma, c] = df.loc[ma, c] * (bv / av) if av > 0 else bv
+                    df.loc[mb, c] = df.loc[mb, c] * (av / bv) if bv > 0 else av
+        else:
+            # Legacy single-index format
+            ma, mb = df[t_col] == ev["a"], df[t_col] == ev["b"]
+            for c in cols:
+                av, bv = df.loc[ma, c].mean(), df.loc[mb, c].mean()
+                df.loc[ma, c] = df.loc[ma, c] * (bv / av) if av > 0 else bv
+                df.loc[mb, c] = df.loc[mb, c] * (av / bv) if bv > 0 else av
 
 
 def compute_similarity_weights(profiles, sel_brands, proj_year, t_start, t_end,
