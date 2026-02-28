@@ -9,6 +9,8 @@ import time
 from config import EVENT_MAPPING
 from engine.dna import _apply_dna_ev, _periods_from_range
 from engine.simulation import get_shock_multiplier, eval_events
+from engine.activity_log import log_action
+from engine.settings_store import load_settings, get_campaign_default
 
 _C_BASE = "#94a3b8"
 _C_SIM  = "#1a1a6b"
@@ -25,8 +27,12 @@ _EV_STYLE = {
 
 def render_lab(df, df_raw, sel_brands, res_level, time_col,
                base_clicks, base_cr, base_aov, adj_c, adj_q, adj_s,
-               t_start, t_end, pure_dna):
+               t_start, t_end, pure_dna, settings=None):
     """Render the Event Simulation Lab page (4 tabs)."""
+    if settings is None:
+        settings = load_settings()
+    _user_name = st.session_state.get("_user_name", "Unknown")
+    _username  = st.session_state.get("_username", "")
     # Defensive init
     if "event_log"        not in st.session_state: st.session_state.event_log        = []
     if "shock_library"    not in st.session_state: st.session_state.shock_library    = []
@@ -134,8 +140,29 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
             st.subheader("Add Time-Bound Campaign")
             c_start = st.date_input("Start Date", date(t_start.year, 6, 1),  key="ev_start")
             c_end   = st.date_input("End Date",   date(t_start.year, 6, 15), key="ev_end")
-            c_str   = st.slider("Traffic Lift (%)", -100, 300, 25, step=5) / 100
-            c_shape = st.selectbox("Campaign Shape", list(EVENT_MAPPING.keys()))
+
+            # Campaign shape first — default lift is looked up from settings
+            c_shape = st.selectbox("Campaign Shape", list(EVENT_MAPPING.keys()), key="ev_shape")
+
+            # Load default for this shape (brand = first selected brand or __all__)
+            _brand_for_default = sel_brands[0] if len(sel_brands) == 1 else "__all__"
+            _prev_shape = st.session_state.get("_prev_ev_shape")
+            if _prev_shape != c_shape:
+                st.session_state["ev_str_pct"] = get_campaign_default(
+                    settings, _brand_for_default, c_shape)
+                st.session_state["_prev_ev_shape"] = c_shape
+
+            c_str_pct = st.slider(
+                "Traffic Lift (%)",
+                min_value=-100, max_value=300, step=5,
+                key="ev_str_pct",
+                help="Default loaded from Settings. Adjust as needed.",
+            )
+            c_str = c_str_pct / 100
+
+            _default_pct = get_campaign_default(settings, _brand_for_default, c_shape)
+            if c_str_pct != _default_pct:
+                st.caption(f"Settings default for this shape: **{_default_pct}%**")
 
             # Shape preview
             st.markdown("##### Shape Preview")
@@ -154,11 +181,26 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
                 fig_p.update_layout(height=220, margin=dict(l=0, r=0, t=30, b=0))
                 st.plotly_chart(fig_p, use_container_width=True)
 
-            if st.button("➕ Inject Campaign"):
+            if st.button("Inject Campaign"):
+                duration = (c_end - c_start).days + 1
+                # Approximate impact: base daily clicks × lift × duration
+                est_clicks = round(base_clicks * c_str * duration)
+                est_sales  = round(base_clicks * c_str * duration * base_cr * base_aov, 2)
                 st.session_state.event_log.append({
                     "type": "shock", "start": c_start, "end": c_end,
                     "str": c_str, "shape": c_shape,
                 })
+                log_action(
+                    name=_user_name, username=_username,
+                    action="Campaign Injected",
+                    details=(
+                        f"Brand: {', '.join(sel_brands)} | "
+                        f"Shape: {c_shape} | Lift: {c_str_pct}% | "
+                        f"Period: {c_start} → {c_end} ({duration}d) | "
+                        f"Est. additional clicks: {est_clicks:,} | "
+                        f"Est. additional sales: €{est_sales:,.0f}"
+                    ),
+                )
                 st.rerun()
 
         with col_s:
@@ -194,7 +236,7 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
                 key="swap_scope")
             swap_scope = "pre_trial" if "Pre" in swap_sc else "post_trial"
 
-            if st.button("🔄 Execute DNA Swap"):
+            if st.button("Execute DNA Swap"):
                 if not a_periods or not b_periods:
                     st.error("Invalid date ranges — no periods found.")
                 else:
@@ -204,6 +246,18 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
                         "b_start": swap_b_start, "b_end": swap_b_end,
                         "scope": swap_scope,
                     })
+                    log_action(
+                        name=_user_name, username=_username,
+                        action="DNA Swap",
+                        details=(
+                            f"Brand: {', '.join(sel_brands)} | "
+                            f"Level: {res_level} | Scope: {swap_scope} | "
+                            f"Period A: {swap_a_start} → {swap_a_end} "
+                            f"(indices {a_periods}) | "
+                            f"Period B: {swap_b_start} → {swap_b_end} "
+                            f"(indices {b_periods})"
+                        ),
+                    )
                     st.rerun()
 
     # ── Tab 3: De-Shock Tool & Signature Library ────────────────────────────
@@ -336,7 +390,7 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
 
     st.markdown("---")
     sig_name = st.text_input("Name this Signature", f"Shock {ds_start}→{ds_end}")
-    if st.button("💾 Save Signature to Library"):
+    if st.button("Save Signature to Library"):
         st.session_state.shock_library.append({
             "id":          str(time.time()),
             "name":        sig_name,
@@ -359,6 +413,22 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
             "daily_pct_s": (shock_raw["delta_s"] / floor_s).fillna(0).tolist()
                            if floor_s > 0 else [0] * len(shock_raw),
         })
+        _user_name_ds = st.session_state.get("_user_name", "Unknown")
+        _username_ds  = st.session_state.get("_username", "")
+        log_action(
+            name=_user_name_ds, username=_username_ds,
+            action="De-Shock Extracted",
+            details=(
+                f"Brand: {', '.join(sel_brands)} | "
+                f"Signature: {sig_name} | "
+                f"Period: {ds_start} → {ds_end} ({ds_dur}d) | "
+                f"Δ Clicks: +{tot_delta_c:,.0f} | "
+                f"Δ Qty: +{tot_delta_q:,.0f} | "
+                f"Δ Sales: +€{tot_delta_s:,.0f} | "
+                f"Organic CR: {organic_cr:.2%} | "
+                f"Event CR: {event_cr:.2%}"
+            ),
+        )
         st.success(f"'{sig_name}' saved to library.")
         st.rerun()
 

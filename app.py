@@ -14,11 +14,14 @@ from engine.dna import (
 )
 from engine.calibration import calibrate_base, build_projections
 from engine.activity_log import log_login
+from engine.settings_store import load_settings
+from engine.i18n import t
 from views.dashboard import render_dashboard
 from views.lab import render_lab
 from views.brand_add import render_brand_add
 from views.brand_update import render_brand_update
 from views.user_log import render_user_log
+from views.settings import render_settings
 from utils.export import build_excel_report
 
 st.set_page_config(page_title="Tech Strategy Lab", layout="wide", page_icon="🧬")
@@ -344,15 +347,27 @@ footer                    {{ display: none !important; }}
         "font-size:0.84rem;margin-bottom:24px;font-weight:400'>Sign in to continue</p>",
         unsafe_allow_html=True,
     )
+    # Detect language from saved settings for login form
+    try:
+        from engine.settings_store import load_settings as _ls
+        from engine.i18n import t as _t
+        _login_lang = _ls().get("language", "en")
+    except Exception:
+        _login_lang = "en"
+        _t = lambda k, l="en": k  # noqa
+
     with st.form("login_form"):
-        full_name = st.text_input("Full Name", placeholder="e.g. Parsa Hajiannejad")
-        username  = st.text_input("Username")
-        password  = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign In", use_container_width=True)
+        full_name = st.text_input(
+            _t("full_name", _login_lang),
+            placeholder=_t("name_placeholder", _login_lang))
+        username  = st.text_input(_t("username", _login_lang))
+        password  = st.text_input(_t("password", _login_lang), type="password")
+        submitted = st.form_submit_button(
+            _t("sign_in", _login_lang), use_container_width=True)
 
     if submitted:
         if not full_name.strip():
-            st.error("Please enter your full name.")
+            st.error(_t("name_required", _login_lang))
         elif username == _USER and password == _PASS:
             st.session_state._auth_ok   = True
             st.session_state._user_name = full_name.strip()
@@ -410,6 +425,10 @@ data_years  = sorted([int(y) for y in profiles["Year"].unique() if y != "Overall
 min_data_yr = data_years[0]
 max_data_yr = data_years[-1]
 
+# ─── SETTINGS ──────────────────────────────────────────────────────────────────
+_settings = load_settings()
+_lang     = _settings.get("language", "en")
+
 # ─── SIDEBAR ───────────────────────────────────────────────────────────────────
 
 # ── Logo + brand centered ─────────────────────────────────────────────────────
@@ -436,14 +455,22 @@ st.sidebar.markdown(
 st.sidebar.divider()
 
 # ── Navigation ────────────────────────────────────────────────────────────────
+_nav_labels = [
+    t("nav_dashboard",    _lang),
+    t("nav_sim_lab",      _lang),
+    t("nav_add_brand",    _lang),
+    t("nav_update_brand", _lang),
+    t("nav_settings",     _lang),
+    t("nav_user_log",     _lang),
+]
 page = st.sidebar.radio(
     "Navigate",
-    ["Dashboard", "Simulation Lab", "Add Brand", "Update Brand", "User Log"],
+    _nav_labels,
     label_visibility="collapsed",
 )
 st.sidebar.divider()
 
-_is_analytics = page in ("Dashboard", "Simulation Lab")
+_is_analytics = page in (t("nav_dashboard", _lang), t("nav_sim_lab", _lang))
 
 # ── Analytics-only sidebar controls ──────────────────────────────────────────
 if _is_analytics:
@@ -544,7 +571,7 @@ st.sidebar.markdown(
     f"{_EMAIL}</a></p>",
     unsafe_allow_html=True,
 )
-if st.sidebar.button("Sign Out", use_container_width=True):
+if st.sidebar.button(t("sign_out", _lang), use_container_width=True):
     st.session_state._auth_ok   = False
     st.session_state._user_name = ""
     st.session_state._username  = ""
@@ -552,11 +579,12 @@ if st.sidebar.button("Sign Out", use_container_width=True):
 
 # ─── PAGE HEADER ───────────────────────────────────────────────────────────────
 _subtitles = {
-    "Dashboard":      "Overview of projections, DNA, and goal tracking",
-    "Simulation Lab": "Inject events, shocks, and campaign simulations",
-    "Add Brand":      "Upload historical data to create a new brand profile",
-    "Update Brand":   "Replace or extend data for an existing brand",
-    "User Log":       "Activity log — modifications and people who made them",
+    t("nav_dashboard",    _lang): t("sub_dashboard",    _lang),
+    t("nav_sim_lab",      _lang): t("sub_sim_lab",      _lang),
+    t("nav_add_brand",    _lang): t("sub_add_brand",    _lang),
+    t("nav_update_brand", _lang): t("sub_update_brand", _lang),
+    t("nav_settings",     _lang): t("sub_settings",     _lang),
+    t("nav_user_log",     _lang): t("sub_user_log",     _lang),
 }
 st.markdown(
     f"<div style='margin-bottom:24px'>"
@@ -569,22 +597,25 @@ st.markdown(
 )
 
 # ─── PAGE ROUTING ──────────────────────────────────────────────────────────────
-if page == "Dashboard":
+if page == t("nav_dashboard", _lang):
     render_dashboard(
         df, profiles, yearly_kpis,
         sel_brands, res_level, time_col,
         base_cr, base_aov,
     )
-elif page == "Simulation Lab":
+elif page == t("nav_sim_lab", _lang):
     render_lab(
         df, df_raw, sel_brands, res_level, time_col,
         base_clicks, base_cr, base_aov,
         adj_c, adj_q, adj_s,
         t_start, t_end, pure_dna,
+        settings=_settings,
     )
-elif page == "Add Brand":
+elif page == t("nav_add_brand", _lang):
     render_brand_add()
-elif page == "Update Brand":
+elif page == t("nav_update_brand", _lang):
     render_brand_update()
-elif page == "User Log":
+elif page == t("nav_settings", _lang):
+    render_settings(lang=_lang)
+elif page == t("nav_user_log", _lang):
     render_user_log()

@@ -407,35 +407,34 @@ def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
             "idx_clicks_work": "mean", "idx_cr_work": "mean", "idx_aov_work": "mean",
         }).reset_index()
 
+        # Per-metric palette: Orange=Clicks, Teal=CR, Violet=AOV
+        # Shade progression: Pure (light/dashed) → PreTrial (medium/dash) → Work (bold/solid)
+        _DNA_PURE     = [("#FCD34D", "Clicks"), ("#6EE7B7", "CR"), ("#C4B5FD", "AOV")]
+        _DNA_PRETRIAL = [("#F97316", "Clicks"), ("#10B981", "CR"), ("#8B5CF6", "AOV")]
+        _DNA_WORK     = [("#C2410C", "Clicks"), ("#065F46", "CR"), ("#5B21B6", "AOV")]
+        _DNA_COLS_P   = ["idx_clicks_pure",     "idx_cr_pure",     "idx_aov_pure"]
+        _DNA_COLS_PT  = ["idx_clicks_pretrial",  "idx_cr_pretrial",  "idx_aov_pretrial"]
+        _DNA_COLS_W   = ["idx_clicks_work",      "idx_cr_work",      "idx_aov_work"]
+
         fig_dna = go.Figure()
-        for m, name, color in [
-            ("idx_clicks_pure", "Clicks", "#94a3b8"),
-            ("idx_cr_pure",     "CR",     "#64748b"),
-            ("idx_aov_pure",    "AOV",    "#475569"),
-        ]:
+        for col, (color, name) in zip(_DNA_COLS_P, _DNA_PURE):
             fig_dna.add_trace(go.Scatter(
-                x=dna_plot[time_col], y=dna_plot[m],
-                mode="lines", line=dict(dash="dot", width=1, color=color),
+                x=dna_plot[time_col], y=dna_plot[col],
+                mode="lines", line=dict(dash="dot", width=2, color=color),
                 name=f"{name} (Pure)"))
 
         if has_events:
-            for m, name, color in [
-                ("idx_clicks_pretrial", "Clicks", "#6366f1"),
-                ("idx_cr_pretrial",     "CR",     "#8b5cf6"),
-                ("idx_aov_pretrial",    "AOV",    "#a855f7"),
-            ]:
+            for col, (color, name) in zip(_DNA_COLS_PT, _DNA_PRETRIAL):
                 fig_dna.add_trace(go.Scatter(
-                    x=dna_plot[time_col], y=dna_plot[m],
-                    mode="lines", line=dict(dash="dash", width=1.5, color=color),
+                    x=dna_plot[time_col], y=dna_plot[col],
+                    mode="lines", line=dict(dash="dash", width=2.5, color=color),
                     name=f"{name} (Pre-Trial)"))
-            for m, name, color in [
-                ("idx_clicks_work", "Clicks", "#1a1a6b"),
-                ("idx_cr_work",     "CR",     "#1d4ed8"),
-                ("idx_aov_work",    "AOV",    "#2563eb"),
-            ]:
+            for col, (color, name) in zip(_DNA_COLS_W, _DNA_WORK):
                 fig_dna.add_trace(go.Scatter(
-                    x=dna_plot[time_col], y=dna_plot[m],
-                    mode="lines+markers", line=dict(width=2, color=color),
+                    x=dna_plot[time_col], y=dna_plot[col],
+                    mode="lines+markers",
+                    line=dict(width=3.5, color=color),
+                    marker=dict(size=5, color=color),
                     name=f"{name} (Work / After)"))
 
         fig_dna.update_layout(

@@ -1,5 +1,6 @@
 """Persistent activity log: records who did what and when."""
 import os
+import json
 import pandas as pd
 from datetime import datetime
 
@@ -8,32 +9,75 @@ from config import LOG_PATH, PROFILES_PATH, DATASET_PATH
 _COLUMNS = ["Timestamp", "Name", "Username", "Action", "Details"]
 
 
+# ── Login snapshot ────────────────────────────────────────────────────────────
+
 def _data_state_snapshot() -> str:
     """
-    Capture a compact snapshot of the current data state:
-    brand count, total rows, and dataset date range.
-    Appended to Login log entries so the record reflects
-    what the data looked like when the session started.
+    Build a comprehensive JSON snapshot of the data state at login:
+      - Per-brand: rows, total clicks, quantity, sales
+      - Past modification history per brand from the activity log
+    Stored in the Details column of the Login row.
     """
-    parts = []
-    try:
-        profiles = pd.read_csv(PROFILES_PATH)
-        n_brands = profiles["brand"].nunique()
-        parts.append(f"Brands: {n_brands}")
-    except Exception:
-        parts.append("Brands: n/a")
+    snapshot = {}
 
+    # ── 1. Per-brand aggregates from dataset ──────────────────────────────────
+    brands_data = {}
     try:
         ds = pd.read_csv(DATASET_PATH, parse_dates=["Date"])
-        parts.append(f"Dataset rows: {len(ds):,}")
-        if not ds.empty:
-            dmin = ds["Date"].min().strftime("%Y-%m-%d")
-            dmax = ds["Date"].max().strftime("%Y-%m-%d")
-            parts.append(f"Date range: {dmin} → {dmax}")
-    except Exception:
-        parts.append("Dataset: n/a")
+        ds["brand"] = ds["brand"].str.strip().str.lower()
+        for brand, grp in ds.groupby("brand"):
+            brands_data[brand] = {
+                "rows":         int(len(grp)),
+                "total_clicks": int(grp["clicks"].sum()),
+                "total_qty":    int(grp["quantity"].sum()),
+                "total_sales":  round(float(grp["sales"].sum()), 2),
+                "date_min":     grp["Date"].min().strftime("%Y-%m-%d"),
+                "date_max":     grp["Date"].max().strftime("%Y-%m-%d"),
+            }
+    except Exception as e:
+        brands_data["_error"] = str(e)
 
-    return " | ".join(parts)
+    snapshot["brands"] = brands_data
+    snapshot["brand_count"] = len(brands_data)
+
+    # ── 2. Past modification history per brand ────────────────────────────────
+    brand_history: dict = {}
+    _MOD_ACTIONS = {
+        "Add Brand", "Update Brand", "Replace Brand",
+        "Campaign Injected", "DNA Swap", "DNA Drag",
+        "De-Shock Extracted", "De-Shock Re-Injected",
+        "Settings: Save", "Settings: Apply Global Defaults",
+    }
+    if os.path.exists(LOG_PATH):
+        try:
+            log_df = pd.read_csv(LOG_PATH)
+            mod_df = log_df[log_df["Action"].isin(_MOD_ACTIONS)].copy()
+            for _, row in mod_df.iterrows():
+                details_str = str(row.get("Details", ""))
+                # Extract brand name from Details field (format "Brand: xxx | ...")
+                brand_key = None
+                for part in details_str.split("|"):
+                    part = part.strip()
+                    if part.lower().startswith("brand:"):
+                        brand_key = part.split(":", 1)[1].strip().lower()
+                        break
+                if brand_key is None:
+                    brand_key = "__global__"
+                entry = {
+                    "timestamp": str(row.get("Timestamp", "")),
+                    "by":        str(row.get("Name", "")),
+                    "action":    str(row.get("Action", "")),
+                    "details":   details_str,
+                }
+                brand_history.setdefault(brand_key, []).append(entry)
+        except Exception as e:
+            brand_history["_error"] = [{"details": str(e)}]
+
+    snapshot["modification_history"] = brand_history
+    snapshot["total_past_events"] = sum(
+        len(v) for v in brand_history.values() if isinstance(v, list))
+
+    return json.dumps(snapshot, ensure_ascii=False)
 
 
 def log_action(name: str, username: str, action: str, details: str = "") -> None:
@@ -54,18 +98,18 @@ def log_action(name: str, username: str, action: str, details: str = "") -> None
 
 
 def log_login(name: str, username: str) -> None:
-    """Log a login event with a snapshot of the current data state."""
-    snapshot = _data_state_snapshot()
+    """Log a login event with a full data-state snapshot."""
+    snapshot_json = _data_state_snapshot()
     log_action(
         name=name,
         username=username,
         action="Login",
-        details=f"Data state on login — {snapshot}",
+        details=snapshot_json,
     )
 
 
 def load_log() -> pd.DataFrame:
-    """Return the full activity log, newest first. Empty DataFrame if no log yet."""
+    """Return the full activity log, newest first."""
     if not os.path.exists(LOG_PATH):
         return pd.DataFrame(columns=_COLUMNS)
     df = pd.read_csv(LOG_PATH)
