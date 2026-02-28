@@ -43,17 +43,15 @@ if "_auth_ok" not in st.session_state:
     st.session_state._auth_ok = False
 
 if not st.session_state._auth_ok:
-    # ── Login page CSS (minimal — only target what we need) ──────────────────
     st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 [data-testid="stAppViewContainer"] { background: #111111 !important; }
-[data-testid="stHeader"]   { display: none !important; }
-[data-testid="stSidebar"]  { display: none !important; }
-footer                     { display: none !important; }
+[data-testid="stHeader"]  { display: none !important; }
+[data-testid="stSidebar"] { display: none !important; }
+footer                    { display: none !important; }
 
-/* Center the login card */
 .main .block-container {
     max-width: 380px;
     padding-top: 7vh;
@@ -61,16 +59,12 @@ footer                     { display: none !important; }
     padding-right: 1rem;
     margin: 0 auto;
 }
-
-/* Form card */
 [data-testid="stForm"] {
     background: #1C1C1C;
     border: 1px solid #2C2C2C;
     border-radius: 12px;
     padding: 28px 28px 20px;
 }
-
-/* Input fields */
 [data-testid="stTextInput"] > div > div > input {
     background: #252525;
     border: 1px solid #383838;
@@ -81,17 +75,15 @@ footer                     { display: none !important; }
     border-color: #F47920;
     box-shadow: 0 0 0 2px rgba(244,121,32,0.2);
 }
-
-/* Submit button (form submit) */
-[data-testid="stForm"] button[kind] {
-    background-color: #F47920;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    width: 100%;
-    font-weight: 600;
+/* Form submit buttons */
+[data-testid="baseButton-secondaryFormSubmit"],
+[data-testid="baseButton-primaryFormSubmit"] {
+    background-color: #F47920 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
 }
-[data-testid="stForm"] button[kind]:hover { opacity: 0.88; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -136,47 +128,52 @@ st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* App background */
+/* ── Apply Inter font to headings and text — NOT to inputs ── */
+h1, h2, h3, h4, h5, h6,
+p, label, .stMarkdown,
+[data-baseweb="tab"],
+[data-testid="stMetricLabel"],
+[data-testid="stMetricValue"],
+[data-testid="stMetricDelta"] {{
+    font-family: 'Inter', sans-serif;
+}}
+
+/* ── App background ── */
 [data-testid="stAppViewContainer"] {{ background: #F5F5F5; }}
 [data-testid="stHeader"] {{ background: transparent; }}
 
-/* Sidebar — dark background */
-section[data-testid="stSidebar"] {{ background-color: {_BLACK}; }}
-section[data-testid="stSidebar"] > div:first-child {{ background-color: {_BLACK}; }}
-
-/* Sidebar text */
-section[data-testid="stSidebar"] p,
-section[data-testid="stSidebar"] span,
-section[data-testid="stSidebar"] .stCaption {{ color: #888888; }}
+/* ── Sidebar ── */
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"] > div:first-child {{
+    background-color: {_BLACK};
+}}
+section[data-testid="stSidebar"] p   {{ color: #888888; }}
 section[data-testid="stSidebar"] label {{ color: #CCCCCC; }}
-section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
-section[data-testid="stSidebar"] h3 {{ color: {_ORANGE}; font-size: 0.72rem !important;
-    text-transform: uppercase; letter-spacing: 0.08em; }}
+section[data-testid="stSidebar"] h3  {{
+    color: {_ORANGE};
+    font-size: 0.7rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    font-weight: 700;
+}}
 section[data-testid="stSidebar"] hr {{ border-color: #2A2A2A; }}
 
-/* Sidebar inputs */
-section[data-testid="stSidebar"] input[type="number"],
-section[data-testid="stSidebar"] input[type="text"] {{
-    background: #1C1C1C;
-    border-color: #333333;
-    color: #E0E0E0;
-}}
-
-/* Metric cards — white card with orange left stripe */
+/* ── Metric cards ── */
 [data-testid="stMetric"] {{
     background: white;
-    border-radius: 8px;
-    border-left: 3px solid {_ORANGE};
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-    padding: 12px 16px;
+    border-radius: 10px;
+    border-left: 4px solid {_ORANGE};
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    padding: 14px 18px;
 }}
 
-/* Tab strip */
+/* ── Tab strip ── */
 [data-baseweb="tab-list"] {{
     background: #E8E8E8;
     border-radius: 8px;
     padding: 3px;
+    gap: 2px;
 }}
 [data-baseweb="tab"] {{
     border-radius: 6px;
@@ -188,29 +185,45 @@ section[data-testid="stSidebar"] input[type="text"] {{
     color: white !important;
 }}
 
-/* Buttons — rounded, slightly styled */
-.stButton > button {{
-    border-radius: 6px;
-    font-weight: 600;
+/* ── Primary action buttons ── */
+[data-testid="baseButton-primary"],
+[data-testid="baseButton-primaryFormSubmit"] {{
+    background-color: {_ORANGE} !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+}}
+[data-testid="baseButton-primary"]:hover,
+[data-testid="baseButton-primaryFormSubmit"]:hover {{
+    opacity: 0.88 !important;
 }}
 
-/* Download button — orange */
+/* ── Secondary buttons — keep Streamlit default, just round them ── */
+[data-testid="baseButton-secondary"],
+[data-testid="baseButton-secondaryFormSubmit"] {{
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+}}
+
+/* ── Download button ── */
 [data-testid="stDownloadButton"] > button {{
-    background-color: {_ORANGE};
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-weight: 600;
+    background-color: {_ORANGE} !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
 }}
-[data-testid="stDownloadButton"] > button:hover {{ opacity: 0.88; }}
+[data-testid="stDownloadButton"] > button:hover {{ opacity: 0.88 !important; }}
 
-/* Expanders */
+/* ── Expanders ── */
 [data-testid="stExpander"] {{
     background: white;
-    border-radius: 8px;
+    border: 1px solid #E8E8E8;
+    border-radius: 10px;
 }}
 
-/* Alerts */
+/* ── Alerts ── */
 [data-testid="stAlert"] {{ border-radius: 8px; }}
 </style>
 """, unsafe_allow_html=True)
@@ -255,12 +268,13 @@ max_data_yr = data_years[-1]
 
 # Logo + name
 if _LOGO_EXISTS:
-    st.sidebar.image(LOGO_PATH, width=52)
+    st.sidebar.image(LOGO_PATH, width=90)
 st.sidebar.markdown(
-    f"<span style='color:#E0E0E0;font-size:0.88rem;font-weight:700;"
-    f"font-family:Inter,sans-serif'>Tech Strategy Lab</span><br>"
-    f"<span style='color:#444;font-size:0.7rem;font-family:Inter,sans-serif'>"
-    f"Analytics Platform</span>",
+    f"<div style='margin-top:6px'>"
+    f"<span style='color:#E0E0E0;font-size:0.92rem;font-weight:700;"
+    f"font-family:Inter,sans-serif;letter-spacing:-0.01em'>Tech Strategy Lab</span><br>"
+    f"<span style='color:#555;font-size:0.72rem;font-family:Inter,sans-serif'>"
+    f"Analytics Platform</span></div>",
     unsafe_allow_html=True,
 )
 st.sidebar.markdown("---")

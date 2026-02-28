@@ -93,6 +93,19 @@ def build_profiles(brand_name: str, raw_df: pd.DataFrame, levels: list) -> pd.Da
     ]
 
 
+# ── File operations ──────────────────────────────────────────────────────────
+
+def load_raw_for_brand(brand_key: str, dataset_path: str) -> pd.DataFrame:
+    """Return the existing raw rows for a brand in upload format (Clicks/Quantity/Sales)."""
+    ds = pd.read_csv(dataset_path)
+    ds["brand"] = ds["brand"].str.strip().str.lower()
+    ds["Date"]  = pd.to_datetime(ds["Date"])
+    existing = ds[ds["brand"] == brand_key].copy()
+    return existing.rename(
+        columns={"clicks": "Clicks", "quantity": "Quantity", "sales": "Sales"}
+    )[["Date", "Clicks", "Quantity", "Sales"]]
+
+
 # ── File save ────────────────────────────────────────────────────────────────
 
 def save_brand(
@@ -147,3 +160,47 @@ def save_brand(
 
     action = "updated" if brand_exists else "added"
     return True, f"Brand '{brand_key}' {action} — {len(raw_df):,} rows processed."
+
+
+def save_brand_append(
+    brand_name: str,
+    new_raw_df: pd.DataFrame,
+    levels: list,
+    profiles_path: str,
+    dataset_path: str,
+) -> tuple[bool, str]:
+    """
+    Merge new records into an existing brand.
+    New data takes priority for any overlapping dates.
+    Returns (success, message).
+    """
+    brand_key = brand_name.strip().lower()
+    existing  = load_raw_for_brand(brand_key, dataset_path)
+
+    if existing.empty:
+        return save_brand(brand_key, new_raw_df, levels, profiles_path, dataset_path,
+                          overwrite=False)
+
+    new = new_raw_df.copy()
+    new["Date"] = pd.to_datetime(new["Date"])
+
+    # Concatenate — put new last so drop_duplicates(keep="last") keeps new values
+    combined = (
+        pd.concat([existing, new], ignore_index=True)
+          .assign(Date=lambda d: pd.to_datetime(d["Date"]))
+          .sort_values("Date")
+          .drop_duplicates(subset=["Date"], keep="last")
+          .reset_index(drop=True)
+    )
+
+    overlap = int(existing["Date"].isin(new["Date"]).sum())
+    added   = len(new) - overlap
+    ok, msg = save_brand(brand_key, combined, levels, profiles_path, dataset_path,
+                         overwrite=True)
+    if ok:
+        return True, (
+            f"Brand '{brand_key}' updated — "
+            f"{added:,} new dates added, {overlap:,} dates updated, "
+            f"{len(combined):,} total rows."
+        )
+    return ok, msg
