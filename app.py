@@ -37,76 +37,82 @@ def _b64_logo() -> str:
         return base64.b64encode(f.read()).decode()
 
 _LOGO_B64 = _b64_logo()
+_LOGO_IMG  = (
+    f"<img src='data:image/png;base64,{_LOGO_B64}' "
+    "style='width:{w}px;border-radius:50%;display:block'>"
+    if _LOGO_B64 else ""
+)
 
 # ─── AUTH GATE ────────────────────────────────────────────────────────────────
 if "_auth_ok" not in st.session_state:
     st.session_state._auth_ok = False
 
 if not st.session_state._auth_ok:
-    st.markdown("""
+    st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-[data-testid="stAppViewContainer"] { background: #111111 !important; }
-[data-testid="stHeader"]  { display: none !important; }
-[data-testid="stSidebar"] { display: none !important; }
-footer                    { display: none !important; }
-
-.main .block-container {
-    max-width: 380px;
-    padding-top: 7vh;
-    padding-left: 1rem;
-    padding-right: 1rem;
+[data-testid="stAppViewContainer"] {{ background: #F5F5F5 !important; }}
+[data-testid="stHeader"]  {{ display: none !important; }}
+[data-testid="stSidebar"] {{ display: none !important; }}
+footer                    {{ display: none !important; }}
+.main .block-container {{
+    max-width: 400px;
+    padding-top: 8vh;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
     margin: 0 auto;
-}
-[data-testid="stForm"] {
-    background: #1C1C1C;
-    border: 1px solid #2C2C2C;
+}}
+/* Login card */
+[data-testid="stForm"] {{
+    background: white;
+    border: 1px solid #E8E8E8;
     border-radius: 12px;
-    padding: 28px 28px 20px;
-}
-[data-testid="stTextInput"] > div > div > input {
-    background: #252525;
-    border: 1px solid #383838;
-    color: #F0F0F0;
+    padding: 32px 32px 24px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}}
+[data-testid="stTextInput"] > div > div > input {{
+    border: 1px solid #DDDDDD;
     border-radius: 6px;
-}
-[data-testid="stTextInput"] > div > div > input:focus {
-    border-color: #F47920;
-    box-shadow: 0 0 0 2px rgba(244,121,32,0.2);
-}
-/* Form submit buttons */
+    color: #111111;
+}}
+[data-testid="stTextInput"] > div > div > input:focus {{
+    border-color: {_ORANGE};
+    box-shadow: 0 0 0 2px rgba(244,121,32,0.15);
+    outline: none;
+}}
+/* Sign In button — orange, white text */
 [data-testid="baseButton-secondaryFormSubmit"],
-[data-testid="baseButton-primaryFormSubmit"] {
-    background-color: #F47920 !important;
-    color: white !important;
+[data-testid="baseButton-primaryFormSubmit"] {{
+    background-color: {_ORANGE} !important;
+    color: #FFFFFF !important;
     border: none !important;
     border-radius: 6px !important;
     font-weight: 600 !important;
-}
+    font-family: 'Inter', sans-serif !important;
+}}
+[data-testid="baseButton-secondaryFormSubmit"]:hover,
+[data-testid="baseButton-primaryFormSubmit"]:hover {{ opacity: 0.88 !important; }}
 </style>
 """, unsafe_allow_html=True)
 
-    # ── Login layout ─────────────────────────────────────────────────────────
+    # Logo centered above the card
     if _LOGO_B64:
         st.markdown(
-            f"<div style='text-align:center;margin-bottom:4px'>"
+            f"<div style='text-align:center;margin-bottom:16px'>"
             f"<img src='data:image/png;base64,{_LOGO_B64}' "
-            f"style='width:64px;border-radius:50%'></div>",
+            f"style='width:80px;border-radius:50%'></div>",
             unsafe_allow_html=True,
         )
-
     st.markdown(
-        "<h3 style='text-align:center;color:#F0F0F0;margin:0 0 4px;font-family:Inter,sans-serif'>"
-        "Tech Strategy Lab</h3>"
-        "<p style='text-align:center;color:#666;font-size:0.82rem;margin-bottom:20px;font-family:Inter,sans-serif'>"
-        "Sign in to continue</p>",
+        "<h3 style='text-align:center;font-family:Inter,sans-serif;"
+        "font-weight:700;color:#111111;margin:0 0 4px'>Tech Strategy Lab</h3>"
+        "<p style='text-align:center;font-family:Inter,sans-serif;"
+        "color:#888888;font-size:0.84rem;margin-bottom:20px'>Sign in to continue</p>",
         unsafe_allow_html=True,
     )
-
     with st.form("login_form"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
+        username  = st.text_input("Username")
+        password  = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Sign In", use_container_width=True)
 
     if submitted:
@@ -117,20 +123,23 @@ footer                    { display: none !important; }
             st.error("Invalid username or password.")
 
     st.markdown(
-        f"<p style='text-align:center;font-size:0.75rem;color:#444;margin-top:16px;font-family:Inter,sans-serif'>"
-        f"<a href='mailto:{_EMAIL}' style='color:#F47920;text-decoration:none'>{_EMAIL}</a></p>",
+        f"<p style='text-align:center;font-size:0.75rem;color:#AAAAAA;"
+        f"font-family:Inter,sans-serif;margin-top:16px'>"
+        f"<a href='mailto:{_EMAIL}' style='color:{_ORANGE};text-decoration:none'>"
+        f"{_EMAIL}</a></p>",
         unsafe_allow_html=True,
     )
     st.stop()
 
-# ─── GLOBAL CSS (authenticated view only) ────────────────────────────────────
+# ─── GLOBAL CSS ───────────────────────────────────────────────────────────────
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* ── Apply Inter font to headings and text — NOT to inputs ── */
-h1, h2, h3, h4, h5, h6,
-p, label, .stMarkdown,
+/* Apply Inter to text, NOT to form inputs (avoids sizing breakage) */
+h1, h2, h3, h4, h5,
+p, label,
+.stMarkdown, .stCaption,
 [data-baseweb="tab"],
 [data-testid="stMetricLabel"],
 [data-testid="stMetricValue"],
@@ -139,38 +148,47 @@ p, label, .stMarkdown,
 }}
 
 /* ── App background ── */
-[data-testid="stAppViewContainer"] {{ background: #F5F5F5; }}
+[data-testid="stAppViewContainer"] {{ background: #F7F7F7; }}
 [data-testid="stHeader"] {{ background: transparent; }}
 
-/* ── Sidebar ── */
+/* ── Sidebar — WHITE ── */
 section[data-testid="stSidebar"],
 section[data-testid="stSidebar"] > div:first-child {{
-    background-color: {_BLACK};
+    background-color: #FFFFFF;
+    border-right: 1px solid #EEEEEE;
 }}
-section[data-testid="stSidebar"] p   {{ color: #888888; }}
-section[data-testid="stSidebar"] label {{ color: #CCCCCC; }}
+/* Sidebar body text */
+section[data-testid="stSidebar"] p        {{ color: #555555; font-size: 0.83rem; }}
+section[data-testid="stSidebar"] label    {{ color: #222222; }}
+section[data-testid="stSidebar"] .stCaption {{ color: #777777; }}
+/* Section label headings — small gray uppercase, NOT orange */
 section[data-testid="stSidebar"] h2,
-section[data-testid="stSidebar"] h3  {{
-    color: {_ORANGE};
-    font-size: 0.7rem !important;
-    text-transform: uppercase;
-    letter-spacing: 0.09em;
+section[data-testid="stSidebar"] h3 {{
+    color: #AAAAAA;
+    font-size: 0.65rem !important;
     font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
 }}
-section[data-testid="stSidebar"] hr {{ border-color: #2A2A2A; }}
+/* Dividers */
+section[data-testid="stSidebar"] hr {{ border-color: #EEEEEE; }}
+/* Radio indicator — orange on white sidebar */
+section[data-testid="stSidebar"] [data-baseweb="radio"] svg {{
+    fill: {_ORANGE} !important;
+}}
 
-/* ── Metric cards ── */
+/* ── Metric cards — white, orange left stripe ── */
 [data-testid="stMetric"] {{
     background: white;
     border-radius: 10px;
     border-left: 4px solid {_ORANGE};
-    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    box-shadow: 0 1px 8px rgba(0,0,0,0.06);
     padding: 14px 18px;
 }}
 
 /* ── Tab strip ── */
 [data-baseweb="tab-list"] {{
-    background: #E8E8E8;
+    background: #EBEBEB;
     border-radius: 8px;
     padding: 3px;
     gap: 2px;
@@ -185,11 +203,11 @@ section[data-testid="stSidebar"] hr {{ border-color: #2A2A2A; }}
     color: white !important;
 }}
 
-/* ── Primary action buttons ── */
+/* ── Primary buttons — orange, WHITE text ── */
 [data-testid="baseButton-primary"],
 [data-testid="baseButton-primaryFormSubmit"] {{
     background-color: {_ORANGE} !important;
-    color: white !important;
+    color: #FFFFFF !important;
     border: none !important;
     border-radius: 8px !important;
     font-weight: 600 !important;
@@ -199,17 +217,18 @@ section[data-testid="stSidebar"] hr {{ border-color: #2A2A2A; }}
     opacity: 0.88 !important;
 }}
 
-/* ── Secondary buttons — keep Streamlit default, just round them ── */
+/* ── Secondary buttons — light bg, DARK text (contrast safe) ── */
 [data-testid="baseButton-secondary"],
 [data-testid="baseButton-secondaryFormSubmit"] {{
     border-radius: 8px !important;
     font-weight: 500 !important;
+    color: #111111 !important;
 }}
 
-/* ── Download button ── */
+/* ── Download button — orange, white text ── */
 [data-testid="stDownloadButton"] > button {{
     background-color: {_ORANGE} !important;
-    color: white !important;
+    color: #FFFFFF !important;
     border: none !important;
     border-radius: 8px !important;
     font-weight: 600 !important;
@@ -266,37 +285,47 @@ max_data_yr = data_years[-1]
 
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 
-# Logo + name
-if _LOGO_EXISTS:
-    st.sidebar.image(LOGO_PATH, width=90)
+# Logo — centered within the sidebar
+if _LOGO_B64:
+    st.sidebar.markdown(
+        f"<div style='text-align:center;padding:20px 0 6px'>"
+        f"<img src='data:image/png;base64,{_LOGO_B64}' "
+        f"style='width:88px;border-radius:50%;display:inline-block'></div>",
+        unsafe_allow_html=True,
+    )
 st.sidebar.markdown(
-    f"<div style='margin-top:6px'>"
-    f"<span style='color:#E0E0E0;font-size:0.92rem;font-weight:700;"
-    f"font-family:Inter,sans-serif;letter-spacing:-0.01em'>Tech Strategy Lab</span><br>"
-    f"<span style='color:#555;font-size:0.72rem;font-family:Inter,sans-serif'>"
-    f"Analytics Platform</span></div>",
+    "<div style='text-align:center;padding-bottom:12px'>"
+    "<span style='font-family:Inter,sans-serif;font-weight:700;font-size:0.9rem;"
+    "color:#111111;letter-spacing:-0.01em'>Tech Strategy Lab</span><br>"
+    "<span style='font-family:Inter,sans-serif;font-size:0.7rem;color:#AAAAAA'>"
+    "Analytics Platform</span></div>",
     unsafe_allow_html=True,
 )
-st.sidebar.markdown("---")
+st.sidebar.divider()
 
+# Navigation — clean text, no emoji
 page = st.sidebar.radio(
     "Navigate",
-    ["📊 Dashboard", "⚡ Lab", "➕ Add Brand", "✏️ Update Brand"],
+    ["Dashboard", "Simulation Lab", "Add Brand", "Update Brand"],
     label_visibility="collapsed",
 )
-st.sidebar.markdown("---")
+st.sidebar.divider()
 
-# Analytics controls only on Dashboard / Lab
-_is_analytics_page = page in ("📊 Dashboard", "⚡ Lab")
+# ── Analytics controls — only for Dashboard & Simulation Lab ─────────────────
+_is_analytics = page in ("Dashboard", "Simulation Lab")
 
-if _is_analytics_page:
+if _is_analytics:
     st.sidebar.header("Market Resolution")
     res_level = st.sidebar.radio(
         "Granularity", ["Monthly", "Weekly", "Daily"], key="ui_res_level")
     time_col = ("Month"     if res_level == "Monthly"
                  else "Week" if res_level == "Weekly" else "DayOfYear")
 
-    st.sidebar.markdown("**Select Brands**")
+    st.sidebar.markdown(
+        "<span style='font-size:0.78rem;font-weight:600;color:#555;font-family:Inter,sans-serif'>"
+        "DNA Brands</span>",
+        unsafe_allow_html=True,
+    )
     all_brands = sorted(profiles["brand"].unique())
     if not st.session_state.ui_sel_brands:
         st.session_state.ui_sel_brands = list(all_brands)
@@ -317,7 +346,7 @@ if _is_analytics_page:
         st.warning("Select at least one brand.")
         st.stop()
 
-    st.sidebar.markdown("---")
+    st.sidebar.divider()
     st.sidebar.header("Trial Reality")
     t_start = st.sidebar.date_input("Start Date", key="ui_t_start")
     t_end   = st.sidebar.date_input("End Date",   key="ui_t_end")
@@ -329,7 +358,7 @@ if _is_analytics_page:
         st.sidebar.warning(f"Outside data range ({min_data_yr}–{max_data_yr}).")
 
     with st.sidebar.expander("Pre-Adjustment"):
-        st.caption("+ % = trial boosted.  − % = trial suppressed.")
+        st.caption("+ % = boosted trial (strip the lift).  − % = suppressed trial (add lift back).")
         st.number_input("Clicks adj (%)",   -100.0, 500.0, key="ui_adj_c", step=5.0)
         st.number_input("Quantity adj (%)", -100.0, 500.0, key="ui_adj_q", step=5.0)
         st.number_input("Sales adj (%)",    -100.0, 500.0, key="ui_adj_s", step=5.0)
@@ -342,11 +371,11 @@ if _is_analytics_page:
     norm_weights = compute_similarity_weights(
         profiles, sel_brands, proj_year, t_start, t_end, c_val, q_val, s_val)
 
-    st.sidebar.markdown("---")
+    st.sidebar.divider()
     st.sidebar.header("DNA Weights")
-    st.sidebar.caption("• **35%** — All-time overall")
+    st.sidebar.caption("35% — All-time overall")
     for y, w in norm_weights.items():
-        st.sidebar.caption(f"• **{w * 65.0:.1f}%** — {y}")
+        st.sidebar.caption(f"{w * 65.0:.1f}% — {y}")
 
     pure_dna       = build_pure_dna(profiles, sel_brands, norm_weights)
     df, _full_year = build_year_dataframe(int(proj_year))
@@ -359,7 +388,7 @@ if _is_analytics_page:
 
     build_projections(df, base_clicks, base_cr, base_aov, st.session_state.event_log)
 
-    st.sidebar.markdown("---")
+    st.sidebar.divider()
     st.sidebar.header("Export")
     excel_bytes = build_excel_report(
         df, st.session_state.event_log, sel_brands,
@@ -367,17 +396,17 @@ if _is_analytics_page:
         base_clicks, base_cr, base_aov,
     )
     st.sidebar.download_button(
-        label="⬇️ Export Strategy",
+        label="Download Strategy Report",
         data=excel_bytes,
         file_name=f"strategy_{proj_year}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
     )
 
-# Sidebar footer
-st.sidebar.markdown("---")
+# ── Sidebar footer ─────────────────────────────────────────────────────────────
+st.sidebar.divider()
 st.sidebar.markdown(
-    f"<p style='font-size:0.72rem;color:#444;font-family:Inter,sans-serif;margin:0'>"
+    f"<p style='font-size:0.72rem;color:#AAAAAA;font-family:Inter,sans-serif;margin:0 0 8px'>"
     f"<a href='mailto:{_EMAIL}' style='color:{_ORANGE};text-decoration:none'>{_EMAIL}</a></p>",
     unsafe_allow_html=True,
 )
@@ -386,33 +415,29 @@ if st.sidebar.button("Sign Out", use_container_width=True):
     st.rerun()
 
 # ─── PAGE HEADER ──────────────────────────────────────────────────────────────
-_labels = {
-    "📊 Dashboard":   "Dashboard",
-    "⚡ Lab":          "Event Simulation Lab",
-    "➕ Add Brand":    "Add Brand",
-    "✏️ Update Brand": "Update Brand",
+_page_titles = {
+    "Dashboard":      "Dashboard",
+    "Simulation Lab": "Simulation Lab",
+    "Add Brand":      "Add Brand",
+    "Update Brand":   "Update Brand",
 }
-_img_tag = (
-    f"<img src='data:image/png;base64,{_LOGO_B64}' "
-    f"style='width:32px;height:32px;border-radius:50%;vertical-align:middle;margin-right:8px'>"
-    if _LOGO_B64 else ""
-)
 st.markdown(
-    f"<h2 style='margin:0 0 4px;font-family:Inter,sans-serif;color:{_BLACK};font-weight:700'>"
-    f"{_img_tag}{_labels.get(page, page)}</h2>"
-    f"<hr style='margin:0 0 16px;border:none;border-top:1px solid #E0E0E0'>",
+    f"<h2 style='margin:0 0 2px;font-family:Inter,sans-serif;"
+    f"color:{_BLACK};font-weight:700;font-size:1.5rem'>"
+    f"{_page_titles.get(page, page)}</h2>"
+    f"<hr style='margin:4px 0 16px;border:none;border-top:1px solid #E8E8E8'>",
     unsafe_allow_html=True,
 )
 
 # ─── PAGE ROUTING ─────────────────────────────────────────────────────────────
-if page == "📊 Dashboard":
+if page == "Dashboard":
     render_dashboard(
         df, profiles, yearly_kpis,
         sel_brands, res_level, time_col,
         base_cr, base_aov,
     )
 
-elif page == "⚡ Lab":
+elif page == "Simulation Lab":
     render_lab(
         df, df_raw, sel_brands, res_level, time_col,
         base_clicks, base_cr, base_aov,
@@ -420,8 +445,8 @@ elif page == "⚡ Lab":
         t_start, t_end, pure_dna,
     )
 
-elif page == "➕ Add Brand":
+elif page == "Add Brand":
     render_brand_add()
 
-elif page == "✏️ Update Brand":
+elif page == "Update Brand":
     render_brand_update()
