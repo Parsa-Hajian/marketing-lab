@@ -455,19 +455,23 @@ st.sidebar.markdown(
 st.sidebar.divider()
 
 # ── Navigation ────────────────────────────────────────────────────────────────
-_nav_labels = [
-    t("nav_dashboard",    _lang),
-    t("nav_sim_lab",      _lang),
-    t("nav_add_brand",    _lang),
-    t("nav_update_brand", _lang),
-    t("nav_settings",     _lang),
-    t("nav_user_log",     _lang),
+_nav_keys = [
+    "nav_dashboard", "nav_sim_lab", "nav_add_brand",
+    "nav_update_brand", "nav_settings", "nav_user_log",
 ]
-page = st.sidebar.radio(
+_nav_labels = [t(k, _lang) for k in _nav_keys]
+
+if "nav_page_idx" not in st.session_state:
+    st.session_state.nav_page_idx = 0
+
+_page_idx = st.sidebar.radio(
     "Navigate",
-    _nav_labels,
+    options=list(range(len(_nav_labels))),
+    format_func=lambda i: _nav_labels[i],
+    key="nav_page_idx",
     label_visibility="collapsed",
 )
+page = _nav_labels[_page_idx]
 st.sidebar.divider()
 
 _is_analytics = page in (t("nav_dashboard", _lang), t("nav_sim_lab", _lang))
