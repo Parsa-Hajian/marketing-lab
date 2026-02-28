@@ -271,9 +271,8 @@ textarea:focus {{
 ──────────────────────────────────────────────── */
 [data-testid="stAlert"] {{ border-radius: 8px; }}
 
-/* ── Fixed sidebar: hide collapse button ── */
+/* ── Fixed sidebar: hide collapse button (prevent collapsing) ── */
 [data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
-[data-testid="collapsedControl"]        {{ display: none !important; }}
 </style>
 """
 
