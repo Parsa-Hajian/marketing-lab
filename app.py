@@ -13,10 +13,12 @@ from engine.dna import (
     build_dna_layers,
 )
 from engine.calibration import calibrate_base, build_projections
+from engine.activity_log import log_login
 from views.dashboard import render_dashboard
 from views.lab import render_lab
 from views.brand_add import render_brand_add
 from views.brand_update import render_brand_update
+from views.user_log import render_user_log
 from utils.export import build_excel_report
 
 st.set_page_config(page_title="Tech Strategy Lab", layout="wide", page_icon="🧬")
@@ -68,13 +70,32 @@ h1,h2,h3,h4,h5,h6,p,label,
 
 /* ── Global backgrounds ── */
 [data-testid="stAppViewContainer"] {{ background: var(--bg); }}
-[data-testid="stHeader"]           {{ display: none !important; }}
+
+/* ── Hide Streamlit header on desktop only; keep it on mobile for sidebar toggle ── */
+@media (min-width: 768px) {{
+    [data-testid="stHeader"] {{ display: none !important; }}
+}}
+@media (max-width: 767px) {{
+    [data-testid="stHeader"] {{
+        background: var(--surface) !important;
+        border-bottom: 1px solid var(--border) !important;
+    }}
+    /* Hide Streamlit's own toolbar/menu items inside header on mobile */
+    [data-testid="stToolbar"] {{ display: none !important; }}
+}}
 
 /* ── Main content: generous padding ── */
 .main .block-container {{
     padding-top: 2.5rem;
     padding-left: 2.5rem;
     padding-right: 2.5rem;
+}}
+@media (max-width: 767px) {{
+    .main .block-container {{
+        padding-top: 4rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }}
 }}
 
 /* ────────────────────────────────────────────────
@@ -249,8 +270,9 @@ textarea:focus {{
 """
 
 # ─── AUTH GATE ─────────────────────────────────────────────────────────────────
-if "_auth_ok" not in st.session_state:
-    st.session_state._auth_ok = False
+if "_auth_ok"    not in st.session_state: st.session_state._auth_ok    = False
+if "_user_name"  not in st.session_state: st.session_state._user_name  = ""
+if "_username"   not in st.session_state: st.session_state._username   = ""
 
 if not st.session_state._auth_ok:
     st.markdown(f"""
@@ -323,13 +345,19 @@ footer                    {{ display: none !important; }}
         unsafe_allow_html=True,
     )
     with st.form("login_form"):
+        full_name = st.text_input("Full Name", placeholder="e.g. Parsa Hajiannejad")
         username  = st.text_input("Username")
         password  = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Sign In", use_container_width=True)
 
     if submitted:
-        if username == _USER and password == _PASS:
-            st.session_state._auth_ok = True
+        if not full_name.strip():
+            st.error("Please enter your full name.")
+        elif username == _USER and password == _PASS:
+            st.session_state._auth_ok   = True
+            st.session_state._user_name = full_name.strip()
+            st.session_state._username  = username
+            log_login(name=full_name.strip(), username=username)
             st.rerun()
         else:
             st.error("Invalid username or password.")
@@ -399,7 +427,10 @@ st.sidebar.markdown(
     f"<div style='margin-top:10px;font-family:Inter,sans-serif;font-weight:700;"
     f"font-size:0.9rem;color:#111111;letter-spacing:-0.01em'>Tech Strategy Lab</div>"
     f"<div style='font-family:Inter,sans-serif;font-size:0.68rem;color:#AAAAAA;"
-    f"margin-top:2px;font-weight:400'>Analytics Platform</div></div>",
+    f"margin-top:2px;font-weight:400'>Analytics Platform</div>"
+    f"<div style='font-family:Inter,sans-serif;font-size:0.72rem;color:#555555;"
+    f"margin-top:6px;font-weight:500'>{st.session_state._user_name}</div>"
+    f"</div>",
     unsafe_allow_html=True,
 )
 st.sidebar.divider()
@@ -407,7 +438,7 @@ st.sidebar.divider()
 # ── Navigation ────────────────────────────────────────────────────────────────
 page = st.sidebar.radio(
     "Navigate",
-    ["Dashboard", "Simulation Lab", "Add Brand", "Update Brand"],
+    ["Dashboard", "Simulation Lab", "Add Brand", "Update Brand", "User Log"],
     label_visibility="collapsed",
 )
 st.sidebar.divider()
@@ -514,7 +545,9 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 if st.sidebar.button("Sign Out", use_container_width=True):
-    st.session_state._auth_ok = False
+    st.session_state._auth_ok   = False
+    st.session_state._user_name = ""
+    st.session_state._username  = ""
     st.rerun()
 
 # ─── PAGE HEADER ───────────────────────────────────────────────────────────────
@@ -523,6 +556,7 @@ _subtitles = {
     "Simulation Lab": "Inject events, shocks, and campaign simulations",
     "Add Brand":      "Upload historical data to create a new brand profile",
     "Update Brand":   "Replace or extend data for an existing brand",
+    "User Log":       "Activity log — modifications and people who made them",
 }
 st.markdown(
     f"<div style='margin-bottom:24px'>"
@@ -552,3 +586,5 @@ elif page == "Add Brand":
     render_brand_add()
 elif page == "Update Brand":
     render_brand_update()
+elif page == "User Log":
+    render_user_log()

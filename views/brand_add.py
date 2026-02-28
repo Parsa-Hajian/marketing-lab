@@ -5,6 +5,7 @@ import streamlit as st
 
 from config import PROFILES_PATH, DATASET_PATH
 from engine.brand_manager import validate_upload, save_brand
+from engine.activity_log import log_action
 
 
 _TEMPLATE = pd.DataFrame({
@@ -37,7 +38,7 @@ def render_brand_add():
     with col_tpl:
         st.markdown("<div style='padding-top:28px'>", unsafe_allow_html=True)
         st.download_button(
-            "⬇️ CSV Template",
+            "Download CSV Template",
             data=_template_csv(),
             file_name="brand_template.csv",
             mime="text/csv",
@@ -105,9 +106,9 @@ def render_brand_add():
 
     # ── Preview ───────────────────────────────────────────────────────────────
     c1, c2, c3 = st.columns(3)
-    c1.metric("Rows",           f"{len(raw_df):,}")
-    c2.metric("Date range",     f"{raw_df['Date'].min().date()} → {raw_df['Date'].max().date()}")
-    c3.metric("Total Sales",    f"€{raw_df['Sales'].sum():,.0f}")
+    c1.metric("Rows",        f"{len(raw_df):,}")
+    c2.metric("Date range",  f"{raw_df['Date'].min().date()} → {raw_df['Date'].max().date()}")
+    c3.metric("Total Sales", f"€{raw_df['Sales'].sum():,.0f}")
 
     with st.expander("Preview (first 30 rows)"):
         st.dataframe(raw_df.head(30), use_container_width=True)
@@ -134,6 +135,12 @@ def render_brand_add():
                 overwrite=False,
             )
         if success:
+            log_action(
+                name=st.session_state.get("_user_name", "Unknown"),
+                username=st.session_state.get("_username", ""),
+                action="Add Brand",
+                details=f"Brand: {brand_name.strip().lower()} | Rows: {len(raw_df):,} | Levels: {', '.join(levels)}",
+            )
             st.success(message)
             st.info("Press **R** to reload the app and see the new brand in the selector.")
             st.cache_data.clear()

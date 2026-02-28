@@ -9,6 +9,7 @@ from engine.brand_manager import (
     save_brand_append,
     load_raw_for_brand,
 )
+from engine.activity_log import log_action
 
 _MODE_REPLACE = "Replace all data"
 _MODE_APPEND  = "Add new records"
@@ -141,12 +142,11 @@ def render_brand_update():
     )
 
     if mode == _MODE_APPEND:
-        # Show overlap stats
         try:
             existing_raw = load_raw_for_brand(brand_key, DATASET_PATH)
             existing_dates = set(existing_raw["Date"].dt.date)
             new_dates      = set(raw_df["Date"].dt.date)
-            overlap = len(existing_dates & new_dates)
+            overlap   = len(existing_dates & new_dates)
             truly_new = len(new_dates - existing_dates)
             st.info(
                 f"**{truly_new:,}** new dates will be added — "
@@ -170,7 +170,7 @@ def render_brand_update():
 
     st.markdown("---")
     if mode == _MODE_REPLACE:
-        st.warning(f"⚠️ This will permanently replace **all** data for **{brand_key}**.")
+        st.warning(f"This will permanently replace **all** data for **{brand_key}**.")
 
     col_btn, _ = st.columns([1, 3])
     with col_btn:
@@ -183,12 +183,23 @@ def render_brand_update():
                         PROFILES_PATH, DATASET_PATH,
                         overwrite=True,
                     )
+                    action_label = "Replace Brand"
                 else:
                     success, message = save_brand_append(
                         brand_key, raw_df, levels,
                         PROFILES_PATH, DATASET_PATH,
                     )
+                    action_label = "Update Brand"
             if success:
+                log_action(
+                    name=st.session_state.get("_user_name", "Unknown"),
+                    username=st.session_state.get("_username", ""),
+                    action=action_label,
+                    details=(
+                        f"Brand: {brand_key} | Mode: {mode} | "
+                        f"Rows uploaded: {len(raw_df):,} | Levels: {', '.join(levels)}"
+                    ),
+                )
                 st.success(message)
                 st.info("Press **R** to reload the app with updated data.")
                 st.cache_data.clear()
