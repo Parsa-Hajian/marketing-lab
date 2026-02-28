@@ -1,31 +1,27 @@
 """App settings: language, per-brand campaign defaults."""
 import json
 import os
-from config import SETTINGS_PATH, EVENT_MAPPING
 
-_SHAPES = list(EVENT_MAPPING.keys())
+# Derive paths relative to this file's location (engine/ → repo root → data/)
+_ENGINE_DIR   = os.path.dirname(os.path.abspath(__file__))
+_ROOT_DIR     = os.path.dirname(_ENGINE_DIR)
+_SETTINGS_PATH = os.path.join(_ROOT_DIR, "data", "settings.json")
+
+_SHAPES = ["Push/DEM", "High discount", "Product Launch", "Field Campaign"]
 
 _DEFAULT_CAMPAIGN_DEFAULTS = {shape: 25 for shape in _SHAPES}
 
-_DEFAULTS = {
-    "language": "en",
-    "campaign_defaults": {
-        "__all__": dict(_DEFAULT_CAMPAIGN_DEFAULTS),
-    },
-}
-
 
 def load_settings() -> dict:
-    if not os.path.exists(SETTINGS_PATH):
+    if not os.path.exists(_SETTINGS_PATH):
         return {
-            "language": _DEFAULTS["language"],
+            "language": "en",
             "campaign_defaults": {
                 "__all__": dict(_DEFAULT_CAMPAIGN_DEFAULTS),
             },
         }
-    with open(SETTINGS_PATH) as f:
+    with open(_SETTINGS_PATH) as f:
         data = json.load(f)
-    # Ensure __all__ always present
     if "campaign_defaults" not in data:
         data["campaign_defaults"] = {"__all__": dict(_DEFAULT_CAMPAIGN_DEFAULTS)}
     if "__all__" not in data["campaign_defaults"]:
@@ -34,8 +30,8 @@ def load_settings() -> dict:
 
 
 def save_settings(settings: dict) -> None:
-    os.makedirs(os.path.dirname(SETTINGS_PATH), exist_ok=True)
-    with open(SETTINGS_PATH, "w") as f:
+    os.makedirs(os.path.dirname(_SETTINGS_PATH), exist_ok=True)
+    with open(_SETTINGS_PATH, "w") as f:
         json.dump(settings, f, indent=2)
 
 

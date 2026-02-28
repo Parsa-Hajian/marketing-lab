@@ -1,8 +1,18 @@
 """Settings page — language, campaign default coefficients."""
+import os
 import pandas as pd
 import streamlit as st
 
-from config import EVENT_MAPPING, PROFILES_PATH
+try:
+    from config import EVENT_MAPPING, PROFILES_PATH
+except ImportError:
+    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    PROFILES_PATH = os.path.join(_ROOT, "data", "individual_brand_profiles_granular.csv")
+    EVENT_MAPPING = {
+        "Push/DEM": "Front-Loaded", "High discount": "Linear Fade",
+        "Product Launch": "Delayed Peak", "Field Campaign": "Step",
+    }
+
 from engine.settings_store import load_settings, save_settings
 from engine.activity_log import log_action
 from engine.i18n import t
