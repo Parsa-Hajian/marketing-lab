@@ -54,20 +54,20 @@ _CSS = f"""
 
 /* ── Design tokens ── */
 :root {{
-    --orange:   {_ORANGE};
-    --black:    {_BLACK};
-    --bg:       #F8F8F8;
-    --surface:  #FFFFFF;
-    --border:   #EFEFEF;
-    --text-1:   #111111;
-    --text-2:   #555555;
-    --text-3:   #AAAAAA;
-    --radius:   10px;
-    --shadow:   0 1px 12px rgba(0,0,0,0.06);
+    --orange:       {_ORANGE};
+    --black:        {_BLACK};
+    --bg:           #F8F8F8;
+    --surface:      #FFFFFF;
+    --border:       #EFEFEF;
+    --text-1:       #111111;
+    --text-2:       #555555;
+    --text-3:       #AAAAAA;
+    --radius:       10px;
+    --shadow:       0 1px 12px rgba(0,0,0,0.06);
     --shadow-hover: 0 4px 20px rgba(0,0,0,0.10);
 }}
 
-/* ── Font: text only — never inputs or buttons (avoid sizing bugs) ── */
+/* ── Inter font on text elements only ── */
 h1,h2,h3,h4,h5,h6,p,label,
 .stMarkdown,.stCaption,
 [data-baseweb="tab"],
@@ -77,32 +77,39 @@ h1,h2,h3,h4,h5,h6,p,label,
     font-family: 'Inter', sans-serif;
 }}
 
-/* ── Global backgrounds ── */
+/* ── Strip Streamlit chrome — KEEP the header element in the DOM
+       so its embedded sidebar-toggle button keeps working.
+       Only hide the content items inside it. ── */
+#MainMenu                        {{ display: none !important; }}
+footer                           {{ display: none !important; }}
+[data-testid="stToolbar"]        {{ display: none !important; }}
+[data-testid="stDecoration"]     {{ display: none !important; }}
+[data-testid="stStatusWidget"]   {{ display: none !important; }}
+
+/* Shrink the header to a thin invisible bar; toggle button stays accessible */
+[data-testid="stHeader"] {{
+    background:    var(--bg) !important;
+    border-bottom: none !important;
+    height:        2.25rem !important;
+    min-height:    2.25rem !important;
+    padding:       0 !important;
+    overflow:      visible !important;
+}}
+
+/* ── Global background ── */
 [data-testid="stAppViewContainer"] {{ background: var(--bg); }}
 
-/* ── Hide Streamlit header on desktop only; keep it on mobile for sidebar toggle ── */
-@media (min-width: 768px) {{
-    [data-testid="stHeader"] {{ display: none !important; }}
-}}
-@media (max-width: 767px) {{
-    [data-testid="stHeader"] {{
-        background: var(--surface) !important;
-        border-bottom: 1px solid var(--border) !important;
-    }}
-    /* Hide Streamlit's own toolbar/menu items inside header on mobile */
-    [data-testid="stToolbar"] {{ display: none !important; }}
-}}
-
-/* ── Main content: generous padding ── */
+/* ── Main content padding ── */
 .main .block-container {{
-    padding-top: 2.5rem;
-    padding-left: 2.5rem;
+    padding-top:   2rem;
+    padding-left:  2.5rem;
     padding-right: 2.5rem;
+    max-width:     none;
 }}
 @media (max-width: 767px) {{
     .main .block-container {{
-        padding-top: 4rem;
-        padding-left: 1rem;
+        padding-top:   3rem;
+        padding-left:  1rem;
         padding-right: 1rem;
     }}
 }}
@@ -112,7 +119,7 @@ h1,h2,h3,h4,h5,h6,p,label,
 ──────────────────────────────────────────────── */
 section[data-testid="stSidebar"],
 section[data-testid="stSidebar"] > div:first-child {{
-    background: var(--surface);
+    background:   var(--surface);
     border-right: 1px solid var(--border);
 }}
 section[data-testid="stSidebar"] p           {{ color: var(--text-2); font-size: 0.82rem; }}
@@ -120,20 +127,23 @@ section[data-testid="stSidebar"] label       {{ color: var(--text-1); font-size:
 section[data-testid="stSidebar"] .stCaption  {{ color: var(--text-3); font-size: 0.78rem; }}
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3 {{
-    color: var(--text-3) !important;
-    font-size: 0.6rem !important;
-    font-weight: 700 !important;
+    color:          var(--text-3) !important;
+    font-size:      0.6rem !important;
+    font-weight:    700 !important;
     text-transform: uppercase;
     letter-spacing: 0.14em;
-    margin: 6px 0 2px;
+    margin:         6px 0 2px;
 }}
 section[data-testid="stSidebar"] hr {{ border-color: var(--border); margin: 8px 0; }}
 
-/* Sidebar nav: orange radio indicator when selected */
+/* Orange radio indicator for selected nav item */
 section[data-testid="stSidebar"] [data-baseweb="radio"] svg {{ fill: var(--orange) !important; }}
 
+/* Hide the collapse «‹» button inside the sidebar so users can't collapse it */
+[data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
+
 /* ────────────────────────────────────────────────
-   TABS — underline style (modern, clean)
+   TABS — underline style
 ──────────────────────────────────────────────── */
 [data-baseweb="tab-list"] {{
     background:    transparent !important;
@@ -153,9 +163,7 @@ section[data-testid="stSidebar"] [data-baseweb="radio"] svg {{ fill: var(--orang
     margin-bottom: -1px !important;
     transition:    color 0.15s !important;
 }}
-[data-baseweb="tab"]:hover {{
-    color: var(--text-2) !important;
-}}
+[data-baseweb="tab"]:hover  {{ color: var(--text-2) !important; }}
 [aria-selected="true"] {{
     background:    transparent !important;
     color:         var(--orange) !important;
@@ -187,32 +195,29 @@ section[data-testid="stSidebar"] [data-baseweb="radio"] svg {{ fill: var(--orang
     margin-bottom:  4px;
 }}
 [data-testid="stMetricValue"] {{
-    color:          var(--black) !important;
-    font-weight:    700 !important;
-    line-height:    1.2 !important;
+    color:       var(--black) !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
 }}
 
 /* ────────────────────────────────────────────────
    BUTTONS
 ──────────────────────────────────────────────── */
-/* Primary — orange fill, white text */
 [data-testid="baseButton-primary"],
 [data-testid="baseButton-primaryFormSubmit"] {{
-    background:    var(--orange) !important;
-    color:         #FFFFFF !important;
-    border:        none !important;
-    border-radius: 8px !important;
-    font-weight:   600 !important;
+    background:     var(--orange) !important;
+    color:          #FFFFFF !important;
+    border:         none !important;
+    border-radius:  8px !important;
+    font-weight:    600 !important;
     letter-spacing: 0.01em !important;
-    transition:    opacity 0.15s, transform 0.15s !important;
+    transition:     opacity 0.15s, transform 0.15s !important;
 }}
 [data-testid="baseButton-primary"]:hover,
 [data-testid="baseButton-primaryFormSubmit"]:hover {{
     opacity:   0.88 !important;
     transform: translateY(-1px) !important;
 }}
-
-/* Secondary — outlined, dark text */
 [data-testid="baseButton-secondary"],
 [data-testid="baseButton-secondaryFormSubmit"] {{
     background:    #FFFFFF !important;
@@ -226,8 +231,6 @@ section[data-testid="stSidebar"] [data-baseweb="radio"] svg {{ fill: var(--orang
     border-color: #BBBBBB !important;
     background:   #FAFAFA !important;
 }}
-
-/* Download button */
 [data-testid="stDownloadButton"] > button {{
     background:    var(--orange) !important;
     color:         #FFFFFF !important;
@@ -248,13 +251,11 @@ textarea:focus {{
     box-shadow:   0 0 0 2px rgba(244,121,32,0.15) !important;
     outline:      none !important;
 }}
-
-/* File uploader */
 [data-testid="stFileUploadDropzone"] {{
-    border:     2px dashed #E0E0E0;
+    border:        2px dashed #E0E0E0;
     border-radius: var(--radius);
-    background: #FAFAFA;
-    transition: border-color 0.15s, background 0.15s;
+    background:    #FAFAFA;
+    transition:    border-color 0.15s, background 0.15s;
 }}
 [data-testid="stFileUploadDropzone"]:hover {{
     border-color: var(--orange);
@@ -275,9 +276,6 @@ textarea:focus {{
    ALERTS
 ──────────────────────────────────────────────── */
 [data-testid="stAlert"] {{ border-radius: 8px; }}
-
-/* ── Fixed sidebar: hide collapse button (prevent collapsing) ── */
-[data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
 </style>
 """
 
