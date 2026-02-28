@@ -41,6 +41,14 @@ def _add_shock_markers(fig, event_log, y_ref="y"):
 def render_dashboard(df, profiles, yearly_kpis, sel_brands, res_level, time_col,
                      base_cr, base_aov):
     """Render the Main Dashboard page (3 tabs)."""
+    # Defensive init — Streamlit Cloud cold-starts can reach views before app.py
+    # session state is fully populated; .get() never raises AttributeError.
+    if "event_log"     not in st.session_state: st.session_state.event_log     = []
+    if "tgt_start"     not in st.session_state: st.session_state.tgt_start     = None
+    if "tgt_end"       not in st.session_state: st.session_state.tgt_end       = None
+    if "target_metric" not in st.session_state: st.session_state.target_metric = "Sales"
+    if "target_val"    not in st.session_state: st.session_state.target_val    = 0.0
+
     event_log  = st.session_state.event_log
     has_events = bool(event_log)
 

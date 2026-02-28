@@ -27,6 +27,15 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
                base_clicks, base_cr, base_aov, adj_c, adj_q, adj_s,
                t_start, t_end, pure_dna):
     """Render the Event Simulation Lab page (4 tabs)."""
+    # Defensive init
+    if "event_log"        not in st.session_state: st.session_state.event_log        = []
+    if "shock_library"    not in st.session_state: st.session_state.shock_library    = []
+    if "shift_target_idx" not in st.session_state: st.session_state.shift_target_idx = None
+    if "tgt_start"        not in st.session_state: st.session_state.tgt_start        = None
+    if "tgt_end"          not in st.session_state: st.session_state.tgt_end          = None
+    if "target_metric"    not in st.session_state: st.session_state.target_metric    = "Sales"
+    if "target_val"       not in st.session_state: st.session_state.target_val       = 0.0
+
     st.header("Simulation Lab & DNA Editor")
 
     n_ev = len(st.session_state.event_log)
