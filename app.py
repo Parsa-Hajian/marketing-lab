@@ -196,6 +196,7 @@ section[data-testid="stSidebar"] [data-baseweb="radio"] svg {{ fill: var(--orang
 }}
 [data-testid="stMetricValue"] {{
     color:       var(--black) !important;
+    font-size:   1.25rem !important;
     font-weight: 700 !important;
     line-height: 1.2 !important;
 }}
