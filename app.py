@@ -22,6 +22,7 @@ from views.brand_add import render_brand_add
 from views.brand_update import render_brand_update
 from views.user_log import render_user_log
 from views.settings import render_settings
+from views.docs import render_docs
 from utils.export import build_excel_report
 
 st.set_page_config(page_title="Tech Strategy Lab", layout="wide", page_icon="🧬")
@@ -269,6 +270,10 @@ textarea:focus {{
    ALERTS
 ──────────────────────────────────────────────── */
 [data-testid="stAlert"] {{ border-radius: 8px; }}
+
+/* ── Fixed sidebar: hide collapse button ── */
+[data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
+[data-testid="collapsedControl"]        {{ display: none !important; }}
 </style>
 """
 
@@ -457,7 +462,7 @@ st.sidebar.divider()
 # ── Navigation ────────────────────────────────────────────────────────────────
 _nav_keys = [
     "nav_dashboard", "nav_sim_lab", "nav_add_brand",
-    "nav_update_brand", "nav_settings", "nav_user_log",
+    "nav_update_brand", "nav_settings", "nav_user_log", "nav_docs",
 ]
 _nav_labels = [t(k, _lang) for k in _nav_keys]
 
@@ -589,6 +594,7 @@ _subtitles = {
     t("nav_update_brand", _lang): t("sub_update_brand", _lang),
     t("nav_settings",     _lang): t("sub_settings",     _lang),
     t("nav_user_log",     _lang): t("sub_user_log",     _lang),
+    t("nav_docs",         _lang): t("sub_docs",         _lang),
 }
 st.markdown(
     f"<div style='margin-bottom:24px'>"
@@ -623,3 +629,5 @@ elif page == t("nav_settings", _lang):
     render_settings(lang=_lang)
 elif page == t("nav_user_log", _lang):
     render_user_log()
+elif page == t("nav_docs", _lang):
+    render_docs(lang=_lang)
