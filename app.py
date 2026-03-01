@@ -137,8 +137,52 @@ section[data-testid="stSidebar"] h3 {{
 }}
 section[data-testid="stSidebar"] hr {{ border-color: var(--border); margin: 8px 0; }}
 
-/* Orange radio indicator for selected nav item */
-section[data-testid="stSidebar"] [data-baseweb="radio"] svg {{ fill: var(--orange) !important; }}
+/* ── Sidebar nav buttons — flat, left-aligned ── */
+[data-testid="stSidebar"] [data-testid="baseButton-secondary"] {{
+    background:    transparent !important;
+    border:        none !important;
+    box-shadow:    none !important;
+    text-align:    left !important;
+    padding:       7px 10px !important;
+    color:         #555555 !important;
+    font-size:     0.84rem !important;
+    font-weight:   400 !important;
+    font-family:   'Inter', sans-serif !important;
+    border-radius: 7px !important;
+    width:         100%;
+    transition:    background 0.15s, color 0.15s !important;
+    margin:        1px 0 !important;
+}}
+[data-testid="stSidebar"] [data-testid="baseButton-secondary"]:hover {{
+    background: rgba(26,26,107,0.07) !important;
+    color:      #1a1a6b !important;
+    border:     none !important;
+}}
+/* Active nav item rendered as a div */
+.nav-active {{
+    display:       block;
+    background:    rgba(26,26,107,0.09);
+    border-left:   3px solid #1a1a6b;
+    border-radius: 0 7px 7px 0;
+    color:         #1a1a6b;
+    font-family:   'Inter', sans-serif;
+    font-size:     0.84rem;
+    font-weight:   600;
+    padding:       7px 10px 7px 7px;
+    margin:        1px 0;
+    cursor:        default;
+}}
+/* Nav section group labels */
+.nav-section {{
+    display:        block;
+    font-family:    'Inter', sans-serif;
+    font-size:      0.62rem;
+    font-weight:    700;
+    color:          #BBBBBB;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding:        12px 10px 5px;
+}}
 
 /* Hide the collapse «‹» button inside the sidebar so users can't collapse it */
 [data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
@@ -468,23 +512,35 @@ st.sidebar.markdown(
 st.sidebar.divider()
 
 # ── Navigation ────────────────────────────────────────────────────────────────
-_nav_keys = [
-    "nav_dashboard", "nav_sim_lab", "nav_forge", "nav_add_brand",
-    "nav_update_brand", "nav_settings", "nav_user_log", "nav_docs",
-]
-_nav_labels = [t(k, _lang) for k in _nav_keys]
+if "nav_page" not in st.session_state:
+    st.session_state.nav_page = "nav_dashboard"
 
-if "nav_page_idx" not in st.session_state:
-    st.session_state.nav_page_idx = 0
+def _nav_btn(key: str, icon: str, label: str) -> None:
+    if st.session_state.nav_page == key:
+        st.sidebar.markdown(
+            f"<span class='nav-active'>{icon}&nbsp;&nbsp;{label}</span>",
+            unsafe_allow_html=True,
+        )
+    else:
+        if st.sidebar.button(f"{icon}  {label}", key=f"nb_{key}", use_container_width=True):
+            st.session_state.nav_page = key
+            st.rerun()
 
-_page_idx = st.sidebar.radio(
-    "Navigate",
-    options=list(range(len(_nav_labels))),
-    format_func=lambda i: _nav_labels[i],
-    key="nav_page_idx",
-    label_visibility="collapsed",
-)
-page = _nav_labels[_page_idx]
+st.sidebar.markdown("<span class='nav-section'>Analytics</span>", unsafe_allow_html=True)
+_nav_btn("nav_dashboard", "📊", t("nav_dashboard", _lang))
+_nav_btn("nav_sim_lab",   "⚡", t("nav_sim_lab",   _lang))
+
+st.sidebar.markdown("<span class='nav-section'>Brands</span>", unsafe_allow_html=True)
+_nav_btn("nav_forge",        "🔬", t("nav_forge",        _lang))
+_nav_btn("nav_add_brand",    "➕", t("nav_add_brand",    _lang))
+_nav_btn("nav_update_brand", "✏️",  t("nav_update_brand", _lang))
+
+st.sidebar.markdown("<span class='nav-section'>System</span>", unsafe_allow_html=True)
+_nav_btn("nav_settings", "⚙️",  t("nav_settings", _lang))
+_nav_btn("nav_user_log", "📋", t("nav_user_log", _lang))
+_nav_btn("nav_docs",     "📖", t("nav_docs",     _lang))
+
+page = t(st.session_state.nav_page, _lang)
 
 # ── Log page navigation ───────────────────────────────────────────────────────
 _prev_page = st.session_state._prev_page
@@ -619,7 +675,7 @@ if _is_analytics:
 
 # ── Sidebar footer ─────────────────────────────────────────────────────────────
 st.sidebar.divider()
-if st.sidebar.button(t("sign_out", _lang), use_container_width=True):
+if st.sidebar.button(t("sign_out", _lang), use_container_width=True, type="primary"):
     log_action(
         name=st.session_state._user_name,
         username=st.session_state._username,
