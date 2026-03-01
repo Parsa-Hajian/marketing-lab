@@ -281,165 +281,339 @@ def render_lab(df, df_raw, sel_brands, res_level, time_col,
 # ── De-Shock Tool ───────────────────────────────────────────────────────────
 
 def _render_deshock(df, df_raw, sel_brands, t_start):
-    st.subheader("🧹 Isolate & Extract Historical Shocks")
+    st.subheader("🧹 Isolate & Extract Shocks")
 
-    available_start = df_raw[df_raw["brand"].isin(sel_brands)]["Date"].min()
-    available_end   = df_raw[df_raw["brand"].isin(sel_brands)]["Date"].max()
-    if pd.isna(available_start):
-        st.warning("No raw data available for the selected brands.")
-        return
-
-    st.info(
-        f"📅 **Available data range for selected brands:** "
-        f"{available_start.date()} → {available_end.date()}"
+    ds_mode = st.radio(
+        "Data Source",
+        ["📂 Historical (raw data)", "📈 Forecast (projected simulation)"],
+        horizontal=True, key="deshock_mode",
     )
-
-    col1, col2 = st.columns(2)
-    default_yr   = available_end.year if available_end.month >= 11 else available_end.year - 1
-    default_yr   = max(default_yr, available_start.year)
-    ds_start_def = date(default_yr, 11, 20)
-    ds_end_def   = date(default_yr, 11, 30)
-
-    ds_start = col1.date_input("Shock Window Start", ds_start_def, key="ds_start")
-    ds_end   = col2.date_input("Shock Window End",   ds_end_def,   key="ds_end")
-
-    if ds_start > ds_end:
-        st.error("Start must be before End.")
-        return
-
-    if pd.Timestamp(ds_start) > available_end or pd.Timestamp(ds_end) < available_start:
-        st.warning(
-            f"Selected window ({ds_start} → {ds_end}) is outside available data range "
-            f"({available_start.date()} → {available_end.date()})."
-        )
-        return
-
-    ctx_start = ds_start - timedelta(days=14)
-    ctx_end   = ds_end   + timedelta(days=14)
-
-    ctx_mask = (
-        df_raw["brand"].isin(sel_brands) &
-        (df_raw["Date"] >= pd.Timestamp(ctx_start)) &
-        (df_raw["Date"] <= pd.Timestamp(ctx_end))
-    )
-    ctx_raw = (
-        df_raw[ctx_mask]
-        .groupby("Date")
-        .agg({"clicks": "sum", "quantity": "sum", "sales": "sum"})
-        .reset_index()
-    )
-
-    if ctx_raw.empty:
-        st.warning("No raw data found for the selected period. Try a different date range.")
-        return
-
-    shock_raw = ctx_raw[
-        (ctx_raw["Date"] >= pd.Timestamp(ds_start)) &
-        (ctx_raw["Date"] <= pd.Timestamp(ds_end))
-    ].copy()
-
-    if shock_raw.empty:
-        st.warning("No data in the shock window itself (context window has data).")
-        return
-
-    floor_c = shock_raw["clicks"].quantile(0.10)
-    floor_q = shock_raw["quantity"].quantile(0.10)
-    floor_s = shock_raw["sales"].quantile(0.10)
-
-    shock_raw["delta_c"] = np.maximum(0, shock_raw["clicks"]   - floor_c)
-    shock_raw["delta_q"] = np.maximum(0, shock_raw["quantity"] - floor_q)
-    shock_raw["delta_s"] = np.maximum(0, shock_raw["sales"]    - floor_s)
-
-    # ── Context window chart ──
-    fig_ds = go.Figure()
-    fig_ds.add_trace(go.Scatter(
-        x=ctx_raw["Date"], y=ctx_raw["clicks"],
-        mode="lines", name="Historical Traffic",
-        line=dict(color=_C_BASE)))
-    fig_ds.add_trace(go.Scatter(
-        x=shock_raw["Date"], y=shock_raw["clicks"],
-        mode="lines", showlegend=False, line=dict(color="rgba(0,0,0,0)")))
-    fig_ds.add_trace(go.Scatter(
-        x=shock_raw["Date"], y=[floor_c] * len(shock_raw),
-        mode="lines", fill="tonexty",
-        fillcolor="rgba(33,195,84,0.4)",
-        line=dict(color="rgba(0,0,0,0)"),
-        name="Extracted Shock Delta"))
-    fig_ds.add_trace(go.Scatter(
-        x=[ds_start, ds_end], y=[floor_c, floor_c],
-        mode="lines", name="Organic Floor (10th pct)",
-        line=dict(color="#dc2626", dash="dash")))
-    fig_ds.update_layout(
-        template=_TMPL, height=320,
-        title="De-Shock Isolation View (+/- 14-day context window)",
-        hovermode="x unified")
-    st.plotly_chart(fig_ds, use_container_width=True)
-
-    tot_delta_c = shock_raw["delta_c"].sum()
-    tot_delta_q = shock_raw["delta_q"].sum()
-    tot_delta_s = shock_raw["delta_s"].sum()
-    ds_dur      = (ds_end - ds_start).days + 1
-
-    if tot_delta_c <= 0:
-        st.warning("No significant shock detected above the organic floor in this window.")
-        return
-
-    organic_cr = floor_q / floor_c if floor_c > 0 else 0
-    event_cr   = tot_delta_q / tot_delta_c if tot_delta_c > 0 else 0
-    cr_delta   = event_cr - organic_cr
-
-    st.markdown("#### 🔬 Forensic Details")
-    fc1, fc2, fc3 = st.columns(3)
-    fc1.metric("Δ Clicks (Artificial)",       f"+{tot_delta_c:,.0f}")
-    fc1.metric("Δ Orders (Artificial)",        f"+{tot_delta_q:,.0f}")
-    fc2.metric("Δ Sales (Artificial)",         f"+€{tot_delta_s:,.0f}")
-    fc2.metric("Organic CR",                   f"{organic_cr:.2%}")
-    fc3.metric("Event CR",                     f"{event_cr:.2%}")
-    fc3.metric("CR Delta (Event − Organic)",   f"{cr_delta:+.2%}")
-
+    use_forecast = "Forecast" in ds_mode
     st.markdown("---")
-    sig_name = st.text_input("Name this Signature", f"Shock {ds_start}→{ds_end}")
-    if st.button("Save Signature to Library"):
-        st.session_state.shock_library.append({
-            "id":          str(time.time()),
-            "name":        sig_name,
-            "duration":    ds_dur,
-            "orig_start":  ds_start,
-            "orig_end":    ds_end,
-            "organic_cr":  organic_cr,
-            "event_cr":    event_cr,
-            "cr_delta":    cr_delta,
-            "tot_delta_c": tot_delta_c,
-            "tot_delta_q": tot_delta_q,
-            "tot_delta_s": tot_delta_s,
-            "daily_abs_c": shock_raw["delta_c"].tolist(),
-            "daily_abs_q": shock_raw["delta_q"].tolist(),
-            "daily_abs_s": shock_raw["delta_s"].tolist(),
-            "daily_pct_c": (shock_raw["delta_c"] / floor_c).fillna(0).tolist()
-                           if floor_c > 0 else [0] * len(shock_raw),
-            "daily_pct_q": (shock_raw["delta_q"] / floor_q).fillna(0).tolist()
-                           if floor_q > 0 else [0] * len(shock_raw),
-            "daily_pct_s": (shock_raw["delta_s"] / floor_s).fillna(0).tolist()
-                           if floor_s > 0 else [0] * len(shock_raw),
-        })
-        _user_name_ds = st.session_state.get("_user_name", "Unknown")
-        _username_ds  = st.session_state.get("_username", "")
-        log_action(
-            name=_user_name_ds, username=_username_ds,
-            action="De-Shock Extracted",
-            details=(
-                f"Brand: {', '.join(sel_brands)} | "
-                f"Signature: {sig_name} | "
-                f"Period: {ds_start} → {ds_end} ({ds_dur}d) | "
-                f"Δ Clicks: +{tot_delta_c:,.0f} | "
-                f"Δ Qty: +{tot_delta_q:,.0f} | "
-                f"Δ Sales: +€{tot_delta_s:,.0f} | "
-                f"Organic CR: {organic_cr:.2%} | "
-                f"Event CR: {event_cr:.2%}"
-            ),
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # HISTORICAL MODE
+    # ──────────────────────────────────────────────────────────────────────────
+    if not use_forecast:
+        available_start = df_raw[df_raw["brand"].isin(sel_brands)]["Date"].min()
+        available_end   = df_raw[df_raw["brand"].isin(sel_brands)]["Date"].max()
+        if pd.isna(available_start):
+            st.warning("No raw data available for the selected brands.")
+            return
+
+        st.info(
+            f"📅 **Available data range for selected brands:** "
+            f"{available_start.date()} → {available_end.date()}"
         )
-        st.success(f"'{sig_name}' saved to library.")
-        st.rerun()
+
+        col1, col2 = st.columns(2)
+        default_yr   = available_end.year if available_end.month >= 11 else available_end.year - 1
+        default_yr   = max(default_yr, available_start.year)
+        ds_start_def = date(default_yr, 11, 20)
+        ds_end_def   = date(default_yr, 11, 30)
+
+        ds_start = col1.date_input("Shock Window Start", ds_start_def, key="ds_start")
+        ds_end   = col2.date_input("Shock Window End",   ds_end_def,   key="ds_end")
+
+        if ds_start > ds_end:
+            st.error("Start must be before End.")
+            return
+
+        if pd.Timestamp(ds_start) > available_end or pd.Timestamp(ds_end) < available_start:
+            st.warning(
+                f"Selected window ({ds_start} → {ds_end}) is outside available data range "
+                f"({available_start.date()} → {available_end.date()})."
+            )
+            return
+
+        ctx_start = ds_start - timedelta(days=14)
+        ctx_end   = ds_end   + timedelta(days=14)
+
+        ctx_mask = (
+            df_raw["brand"].isin(sel_brands) &
+            (df_raw["Date"] >= pd.Timestamp(ctx_start)) &
+            (df_raw["Date"] <= pd.Timestamp(ctx_end))
+        )
+        ctx_raw = (
+            df_raw[ctx_mask]
+            .groupby("Date")
+            .agg({"clicks": "sum", "quantity": "sum", "sales": "sum"})
+            .reset_index()
+        )
+
+        if ctx_raw.empty:
+            st.warning("No raw data found for the selected period. Try a different date range.")
+            return
+
+        shock_raw = ctx_raw[
+            (ctx_raw["Date"] >= pd.Timestamp(ds_start)) &
+            (ctx_raw["Date"] <= pd.Timestamp(ds_end))
+        ].copy()
+
+        if shock_raw.empty:
+            st.warning("No data in the shock window itself (context window has data).")
+            return
+
+        floor_c = shock_raw["clicks"].quantile(0.10)
+        floor_q = shock_raw["quantity"].quantile(0.10)
+        floor_s = shock_raw["sales"].quantile(0.10)
+
+        shock_raw["delta_c"] = np.maximum(0, shock_raw["clicks"]   - floor_c)
+        shock_raw["delta_q"] = np.maximum(0, shock_raw["quantity"] - floor_q)
+        shock_raw["delta_s"] = np.maximum(0, shock_raw["sales"]    - floor_s)
+
+        fig_ds = go.Figure()
+        fig_ds.add_trace(go.Scatter(
+            x=ctx_raw["Date"], y=ctx_raw["clicks"],
+            mode="lines", name="Historical Traffic",
+            line=dict(color=_C_BASE)))
+        fig_ds.add_trace(go.Scatter(
+            x=shock_raw["Date"], y=shock_raw["clicks"],
+            mode="lines", showlegend=False, line=dict(color="rgba(0,0,0,0)")))
+        fig_ds.add_trace(go.Scatter(
+            x=shock_raw["Date"], y=[floor_c] * len(shock_raw),
+            mode="lines", fill="tonexty",
+            fillcolor="rgba(33,195,84,0.4)",
+            line=dict(color="rgba(0,0,0,0)"),
+            name="Extracted Shock Delta"))
+        fig_ds.add_trace(go.Scatter(
+            x=[ds_start, ds_end], y=[floor_c, floor_c],
+            mode="lines", name="Organic Floor (10th pct)",
+            line=dict(color="#dc2626", dash="dash")))
+        fig_ds.update_layout(
+            template=_TMPL, height=320,
+            title="De-Shock Isolation View (+/- 14-day context window)",
+            hovermode="x unified")
+        st.plotly_chart(fig_ds, use_container_width=True)
+
+        tot_delta_c = float(shock_raw["delta_c"].sum())
+        tot_delta_q = float(shock_raw["delta_q"].sum())
+        tot_delta_s = float(shock_raw["delta_s"].sum())
+        ds_dur      = (ds_end - ds_start).days + 1
+
+        if tot_delta_c <= 0:
+            st.warning("No significant shock detected above the organic floor in this window.")
+            return
+
+        organic_cr = floor_q / floor_c if floor_c > 0 else 0
+        event_cr   = tot_delta_q / tot_delta_c if tot_delta_c > 0 else 0
+        cr_delta   = event_cr - organic_cr
+
+        st.markdown("#### 🔬 Forensic Details")
+        fc1, fc2, fc3 = st.columns(3)
+        fc1.metric("Δ Clicks (Artificial)",       f"+{tot_delta_c:,.0f}")
+        fc1.metric("Δ Orders (Artificial)",        f"+{tot_delta_q:,.0f}")
+        fc2.metric("Δ Sales (Artificial)",         f"+€{tot_delta_s:,.0f}")
+        fc2.metric("Organic CR",                   f"{organic_cr:.2%}")
+        fc3.metric("Event CR",                     f"{event_cr:.2%}")
+        fc3.metric("CR Delta (Event − Organic)",   f"{cr_delta:+.2%}")
+
+        st.markdown("---")
+        sig_name = st.text_input("Name this Signature", f"Shock {ds_start}→{ds_end}", key="ds_hist_signame")
+        if st.button("Save Signature to Library", key="ds_hist_save"):
+            st.session_state.shock_library.append({
+                "id":          str(time.time()),
+                "name":        sig_name,
+                "duration":    ds_dur,
+                "orig_start":  ds_start,
+                "orig_end":    ds_end,
+                "organic_cr":  organic_cr,
+                "event_cr":    event_cr,
+                "cr_delta":    cr_delta,
+                "tot_delta_c": tot_delta_c,
+                "tot_delta_q": tot_delta_q,
+                "tot_delta_s": tot_delta_s,
+                "daily_abs_c": shock_raw["delta_c"].tolist(),
+                "daily_abs_q": shock_raw["delta_q"].tolist(),
+                "daily_abs_s": shock_raw["delta_s"].tolist(),
+                "daily_pct_c": (shock_raw["delta_c"] / floor_c).fillna(0).tolist()
+                               if floor_c > 0 else [0] * len(shock_raw),
+                "daily_pct_q": (shock_raw["delta_q"] / floor_q).fillna(0).tolist()
+                               if floor_q > 0 else [0] * len(shock_raw),
+                "daily_pct_s": (shock_raw["delta_s"] / floor_s).fillna(0).tolist()
+                               if floor_s > 0 else [0] * len(shock_raw),
+            })
+            _un_ds = st.session_state.get("_user_name", "Unknown")
+            _uu_ds = st.session_state.get("_username", "")
+            log_action(
+                name=_un_ds, username=_uu_ds,
+                action="De-Shock Extracted",
+                details=(
+                    f"Brand: {', '.join(sel_brands)} | Source: Historical | "
+                    f"Signature: {sig_name} | "
+                    f"Period: {ds_start} → {ds_end} ({ds_dur}d) | "
+                    f"Δ Clicks: +{tot_delta_c:,.0f} | "
+                    f"Δ Qty: +{tot_delta_q:,.0f} | "
+                    f"Δ Sales: +€{tot_delta_s:,.0f} | "
+                    f"Organic CR: {organic_cr:.2%} | "
+                    f"Event CR: {event_cr:.2%}"
+                ),
+            )
+            st.success(f"'{sig_name}' saved to library.")
+            st.rerun()
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # FORECAST MODE — uses Clicks_Sim − Clicks_Base from projection df
+    # ──────────────────────────────────────────────────────────────────────────
+    else:
+        has_events = (df["Clicks_Sim"] - df["Clicks_Base"]).abs().max() > 0
+        if not has_events:
+            st.info(
+                "Baseline and simulation are identical — inject a campaign or DNA event "
+                "in the **Event Injection** or **DNA Editor** tab first, then return here "
+                "to extract the forecast shock signature."
+            )
+
+        proj_start = df["Date"].min().date()
+        proj_end   = df["Date"].max().date()
+        st.info(f"📅 **Projection year in scope:** {proj_start} → {proj_end}")
+
+        col1, col2 = st.columns(2)
+        ds_start = col1.date_input(
+            "Shock Window Start",
+            date(proj_start.year, 11, 1),
+            min_value=proj_start, max_value=proj_end,
+            key="ds_start_f",
+        )
+        ds_end = col2.date_input(
+            "Shock Window End",
+            date(proj_start.year, 11, 30),
+            min_value=proj_start, max_value=proj_end,
+            key="ds_end_f",
+        )
+
+        if ds_start > ds_end:
+            st.error("Start must be before End.")
+            return
+
+        ctx_start = max(ds_start - timedelta(days=14), proj_start)
+        ctx_end   = min(ds_end   + timedelta(days=14), proj_end)
+
+        ctx_df = df[
+            (df["Date"].dt.date >= ctx_start) &
+            (df["Date"].dt.date <= ctx_end)
+        ].copy()
+
+        shock_df = ctx_df[
+            (ctx_df["Date"].dt.date >= ds_start) &
+            (ctx_df["Date"].dt.date <= ds_end)
+        ].copy()
+
+        if shock_df.empty:
+            st.warning("No projected data in the selected window.")
+            return
+
+        # Delta = simulation above baseline (injected events contribution)
+        shock_df["delta_c"] = np.maximum(0, shock_df["Clicks_Sim"] - shock_df["Clicks_Base"])
+        shock_df["delta_q"] = np.maximum(0, shock_df["Qty_Sim"]    - shock_df["Qty_Base"])
+        shock_df["delta_s"] = np.maximum(0, shock_df["Sales_Sim"]  - shock_df["Sales_Base"])
+
+        # ── Context chart: Baseline vs Simulation ────────────────────────────
+        fig_ds = go.Figure()
+        fig_ds.add_trace(go.Scatter(
+            x=ctx_df["Date"], y=ctx_df["Clicks_Base"],
+            mode="lines", name="Forecast Baseline (organic)",
+            line=dict(color=_C_BASE, dash="dot")))
+        fig_ds.add_trace(go.Scatter(
+            x=ctx_df["Date"], y=ctx_df["Clicks_Sim"],
+            mode="lines", name="Forecast + Events",
+            line=dict(color=_C_SIM)))
+        # Green fill = the shock delta inside the shock window
+        fig_ds.add_trace(go.Scatter(
+            x=list(shock_df["Date"]) + list(shock_df["Date"][::-1]),
+            y=list(shock_df["Clicks_Sim"]) + list(shock_df["Clicks_Base"][::-1]),
+            fill="toself", fillcolor="rgba(33,195,84,0.4)",
+            line=dict(color="rgba(0,0,0,0)"),
+            name="Extracted Shock Delta",
+        ))
+        fig_ds.update_layout(
+            template=_TMPL, height=320,
+            title="Forecast De-Shock View (+/- 14-day context window)",
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig_ds, use_container_width=True)
+
+        tot_delta_c = float(shock_df["delta_c"].sum())
+        tot_delta_q = float(shock_df["delta_q"].sum())
+        tot_delta_s = float(shock_df["delta_s"].sum())
+        ds_dur      = (ds_end - ds_start).days + 1
+
+        avg_base_c = float(shock_df["Clicks_Base"].mean())
+        avg_base_q = float(shock_df["Qty_Base"].mean())
+
+        if tot_delta_c <= 0:
+            st.warning(
+                "No positive delta between Simulation and Baseline in this window. "
+                "Inject a campaign or DNA event first."
+            )
+            # still show library below
+        else:
+            organic_cr = avg_base_q / avg_base_c if avg_base_c > 0 else 0
+            event_cr   = tot_delta_q / tot_delta_c if tot_delta_c > 0 else 0
+            cr_delta   = event_cr - organic_cr
+
+            st.markdown("#### 🔬 Forensic Details")
+            fc1, fc2, fc3 = st.columns(3)
+            fc1.metric("Δ Clicks (Forecast Event)",      f"+{tot_delta_c:,.0f}")
+            fc1.metric("Δ Orders (Forecast Event)",       f"+{tot_delta_q:,.0f}")
+            fc2.metric("Δ Sales (Forecast Event)",        f"+€{tot_delta_s:,.0f}")
+            fc2.metric("Organic CR (Baseline)",            f"{organic_cr:.2%}")
+            fc3.metric("Event CR",                         f"{event_cr:.2%}")
+            fc3.metric("CR Delta (Event − Organic)",       f"{cr_delta:+.2%}")
+
+            st.markdown("---")
+            sig_name = st.text_input(
+                "Name this Signature",
+                f"Forecast Shock {ds_start}→{ds_end}",
+                key="ds_fore_signame",
+            )
+            if st.button("Save Signature to Library", key="ds_fore_save"):
+                base_c_vals = shock_df["Clicks_Base"].values
+                base_q_vals = shock_df["Qty_Base"].values
+                base_s_vals = shock_df["Sales_Base"].values
+                st.session_state.shock_library.append({
+                    "id":          str(time.time()),
+                    "name":        sig_name,
+                    "duration":    ds_dur,
+                    "orig_start":  ds_start,
+                    "orig_end":    ds_end,
+                    "organic_cr":  organic_cr,
+                    "event_cr":    event_cr,
+                    "cr_delta":    cr_delta,
+                    "tot_delta_c": tot_delta_c,
+                    "tot_delta_q": tot_delta_q,
+                    "tot_delta_s": tot_delta_s,
+                    "daily_abs_c": shock_df["delta_c"].tolist(),
+                    "daily_abs_q": shock_df["delta_q"].tolist(),
+                    "daily_abs_s": shock_df["delta_s"].tolist(),
+                    "daily_pct_c": np.where(
+                        base_c_vals > 0, shock_df["delta_c"].values / base_c_vals, 0
+                    ).tolist(),
+                    "daily_pct_q": np.where(
+                        base_q_vals > 0, shock_df["delta_q"].values / base_q_vals, 0
+                    ).tolist(),
+                    "daily_pct_s": np.where(
+                        base_s_vals > 0, shock_df["delta_s"].values / base_s_vals, 0
+                    ).tolist(),
+                })
+                _un_ds = st.session_state.get("_user_name", "Unknown")
+                _uu_ds = st.session_state.get("_username", "")
+                log_action(
+                    name=_un_ds, username=_uu_ds,
+                    action="De-Shock Extracted",
+                    details=(
+                        f"Brand: {', '.join(sel_brands)} | Source: Forecast | "
+                        f"Signature: {sig_name} | "
+                        f"Period: {ds_start} → {ds_end} ({ds_dur}d) | "
+                        f"Δ Clicks: +{tot_delta_c:,.0f} | "
+                        f"Δ Qty: +{tot_delta_q:,.0f} | "
+                        f"Δ Sales: +€{tot_delta_s:,.0f} | "
+                        f"Organic CR: {organic_cr:.2%} | "
+                        f"Event CR: {event_cr:.2%}"
+                    ),
+                )
+                st.success(f"'{sig_name}' saved to library.")
+                st.rerun()
 
     # ── Signature Library ──
     st.markdown("---")
