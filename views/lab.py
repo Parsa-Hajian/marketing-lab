@@ -456,28 +456,72 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
     # FORECAST MODE — uses Clicks_Sim − Clicks_Base from projection df
     # ──────────────────────────────────────────────────────────────────────────
     else:
-        has_events = (df["Clicks_Sim"] - df["Clicks_Base"]).abs().max() > 0
-        if not has_events:
-            st.info(
-                "Baseline and simulation are identical — inject a campaign or DNA event "
-                "in the **Event Injection** or **DNA Editor** tab first, then return here "
-                "to extract the forecast shock signature."
-            )
-
         proj_start = df["Date"].min().date()
         proj_end   = df["Date"].max().date()
+
+        df["_fc_delta"] = df["Clicks_Sim"] - df["Clicks_Base"]
+        has_events = df["_fc_delta"].abs().max() > 0
+
+        # ── Full-year overview ─────────────────────────────────────────────
+        st.markdown("##### Full-Year Forecast Overview")
+        fig_yr = go.Figure()
+        fig_yr.add_trace(go.Scatter(
+            x=df["Date"], y=df["Clicks_Base"],
+            name="Baseline (organic)", mode="lines",
+            line=dict(color=_C_BASE, dash="dot", width=1.5)))
+        fig_yr.add_trace(go.Scatter(
+            x=df["Date"], y=df["Clicks_Sim"],
+            name="Simulation (events included)", mode="lines",
+            line=dict(color=_C_SIM, width=2)))
+        # Shade positive delta in green
+        if has_events:
+            pos = df[df["_fc_delta"] > 0]
+            if not pos.empty:
+                fig_yr.add_trace(go.Scatter(
+                    x=list(pos["Date"]) + list(pos["Date"][::-1]),
+                    y=list(pos["Clicks_Sim"]) + list(pos["Clicks_Base"][::-1]),
+                    fill="toself", fillcolor="rgba(33,195,84,0.25)",
+                    line=dict(color="rgba(0,0,0,0)"),
+                    name="Event Uplift", showlegend=True))
+        # Event markers
+        for ev in st.session_state.event_log:
+            if ev.get("type") == "shock":
+                fig_yr.add_vrect(
+                    x0=str(ev["start"]), x1=str(ev["end"]),
+                    fillcolor="rgba(244,121,32,0.12)", line_width=0)
+        fig_yr.update_layout(
+            template=_TMPL, height=240,
+            margin=dict(t=10, b=20, l=0, r=0),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            hovermode="x unified")
+        st.plotly_chart(fig_yr, use_container_width=True)
+
+        if not has_events:
+            st.info(
+                "⬆️ Baseline and Simulation are identical — no events have been injected yet. "
+                "Go to the **🚀 Events** tab, add a campaign or DNA drag, then return here "
+                "to isolate and extract the forecast shock signature."
+            )
+
         st.info(f"📅 **Projection year in scope:** {proj_start} → {proj_end}")
+
+        # Auto-select the window around the largest delta
+        if has_events:
+            _peak_date = df.loc[df["_fc_delta"].idxmax(), "Date"].date()
+            _auto_s = max(proj_start, _peak_date - timedelta(days=7))
+            _auto_e = min(proj_end,   _peak_date + timedelta(days=7))
+        else:
+            _auto_s = date(proj_start.year, 11, 1)
+            _auto_e = date(proj_start.year, 11, 30)
 
         col1, col2 = st.columns(2)
         ds_start = col1.date_input(
-            "Shock Window Start",
-            date(proj_start.year, 11, 1),
+            "Shock Window Start", _auto_s,
             min_value=proj_start, max_value=proj_end,
             key="ds_start_f",
         )
         ds_end = col2.date_input(
-            "Shock Window End",
-            date(proj_start.year, 11, 30),
+            "Shock Window End", _auto_e,
             min_value=proj_start, max_value=proj_end,
             key="ds_end_f",
         )
@@ -508,27 +552,27 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
         shock_df["delta_q"] = np.maximum(0, shock_df["Qty_Sim"]    - shock_df["Qty_Base"])
         shock_df["delta_s"] = np.maximum(0, shock_df["Sales_Sim"]  - shock_df["Sales_Base"])
 
-        # ── Context chart: Baseline vs Simulation ────────────────────────────
+        # ── Context chart: Baseline vs Simulation (±14-day window) ──────────
         fig_ds = go.Figure()
         fig_ds.add_trace(go.Scatter(
             x=ctx_df["Date"], y=ctx_df["Clicks_Base"],
             mode="lines", name="Forecast Baseline (organic)",
-            line=dict(color=_C_BASE, dash="dot")))
+            line=dict(color=_C_BASE, dash="dot", width=1.5)))
         fig_ds.add_trace(go.Scatter(
             x=ctx_df["Date"], y=ctx_df["Clicks_Sim"],
-            mode="lines", name="Forecast + Events",
-            line=dict(color=_C_SIM)))
-        # Green fill = the shock delta inside the shock window
-        fig_ds.add_trace(go.Scatter(
-            x=list(shock_df["Date"]) + list(shock_df["Date"][::-1]),
-            y=list(shock_df["Clicks_Sim"]) + list(shock_df["Clicks_Base"][::-1]),
-            fill="toself", fillcolor="rgba(33,195,84,0.4)",
-            line=dict(color="rgba(0,0,0,0)"),
-            name="Extracted Shock Delta",
-        ))
+            mode="lines", name="Forecast + Injected Events",
+            line=dict(color=_C_SIM, width=2)))
+        # Green fill = extracted shock delta inside the shock window
+        if shock_df["delta_c"].sum() > 0:
+            fig_ds.add_trace(go.Scatter(
+                x=list(shock_df["Date"]) + list(shock_df["Date"][::-1]),
+                y=list(shock_df["Clicks_Sim"]) + list(shock_df["Clicks_Base"][::-1]),
+                fill="toself", fillcolor="rgba(33,195,84,0.35)",
+                line=dict(color="rgba(0,0,0,0)"),
+                name="Extracted Shock Delta"))
         fig_ds.update_layout(
-            template=_TMPL, height=320,
-            title="Forecast De-Shock View (+/- 14-day context window)",
+            template=_TMPL, height=300,
+            title="Forecast De-Shock View  (+/− 14-day context window)",
             hovermode="x unified",
         )
         st.plotly_chart(fig_ds, use_container_width=True)
@@ -615,6 +659,10 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
                 st.success(f"'{sig_name}' saved to library.")
                 st.rerun()
 
+    # ── Spike Compressor ──
+    st.markdown("---")
+    _render_compression(df, df_raw, sel_brands)
+
     # ── Signature Library ──
     st.markdown("---")
     st.subheader("📚 Signature Library & Re-Injection")
@@ -700,6 +748,207 @@ def _render_deshock(df, df_raw, sel_brands, t_start):
                         margin=dict(l=0, r=0, t=30, b=0),
                         title="Injection Preview")
                     st.plotly_chart(fig_pv, use_container_width=True)
+
+
+# ── Spike Compressor ─────────────────────────────────────────────────────────
+
+def _render_compression(df, df_raw, sel_brands):
+    """Let the user scale down a spike by a chosen % and save it as a signature."""
+    with st.expander("🎛️ Spike Compressor — rescale any spike before injecting", expanded=False):
+        st.caption(
+            "Pick a time window that contains a spike, choose how much to compress it, "
+            "then save the result to the Signature Library for re-injection anywhere. "
+            "Perfect for asking *'what if this campaign drove 30 % less traffic lift?'*"
+        )
+
+        # ── Source ────────────────────────────────────────────────────────
+        comp_src = st.radio(
+            "Spike source",
+            ["📂 Historical (raw data)", "📈 Forecast simulation"],
+            horizontal=True, key="comp_src",
+        )
+        use_hist = "Historical" in comp_src
+
+        # ── Date range ────────────────────────────────────────────────────
+        c1, c2 = st.columns(2)
+        if use_hist:
+            avail = df_raw[df_raw["brand"].isin(sel_brands)]["Date"]
+            if avail.empty:
+                st.warning("No raw data for selected brands.")
+                return
+            avail_end = avail.max()
+            yr = avail_end.year
+            comp_s = c1.date_input("Spike Start", date(yr, 11, 20), key="comp_s")
+            comp_e = c2.date_input("Spike End",   date(yr, 11, 30), key="comp_e")
+        else:
+            proj_s = df["Date"].min().date()
+            proj_e = df["Date"].max().date()
+            comp_s = c1.date_input("Spike Start", date(proj_s.year, 11, 1),
+                                   min_value=proj_s, max_value=proj_e, key="comp_s")
+            comp_e = c2.date_input("Spike End",   date(proj_s.year, 11, 30),
+                                   min_value=proj_s, max_value=proj_e, key="comp_e")
+
+        if comp_s > comp_e:
+            st.error("Start must be before End.")
+            return
+
+        # ── Parameters ────────────────────────────────────────────────────
+        comp_pct = st.slider(
+            "Compression %  ·  how much to reduce the spike height",
+            0, 100, 30, 5, key="comp_pct",
+            help="0 % = keep original  |  50 % = half the impact  |  100 % = flatten entirely",
+        )
+        smooth = st.checkbox(
+            "Gaussian edge taper  (smooth the start/end of the spike)",
+            key="comp_smooth",
+            help="Applies a bell-curve taper so the spike fades in/out naturally rather than cutting off sharply.",
+        )
+
+        if st.button("🔍 Preview", key="comp_preview_btn", use_container_width=True):
+            # ── Pull raw delta series ─────────────────────────────────────
+            if use_hist:
+                mask = (
+                    df_raw["brand"].isin(sel_brands) &
+                    (df_raw["Date"] >= pd.Timestamp(comp_s)) &
+                    (df_raw["Date"] <= pd.Timestamp(comp_e))
+                )
+                win = (df_raw[mask]
+                       .groupby("Date")
+                       .agg({"clicks": "sum", "quantity": "sum", "sales": "sum"})
+                       .reset_index())
+                if win.empty:
+                    st.warning("No historical data in this window.")
+                    return
+                floor_c = win["clicks"].quantile(0.10)
+                floor_q = win["quantity"].quantile(0.10)
+                floor_s = win["sales"].quantile(0.10)
+                orig_dc = np.maximum(0, win["clicks"].values   - floor_c)
+                orig_dq = np.maximum(0, win["quantity"].values - floor_q)
+                orig_ds = np.maximum(0, win["sales"].values    - floor_s)
+                dates   = win["Date"].values
+            else:
+                wmask = (
+                    (df["Date"].dt.date >= comp_s) &
+                    (df["Date"].dt.date <= comp_e)
+                )
+                win_df = df[wmask].copy()
+                if win_df.empty:
+                    st.warning("No projected data in this window.")
+                    return
+                orig_dc = np.maximum(0, win_df["Clicks_Sim"].values - win_df["Clicks_Base"].values)
+                orig_dq = np.maximum(0, win_df["Qty_Sim"].values    - win_df["Qty_Base"].values)
+                orig_ds = np.maximum(0, win_df["Sales_Sim"].values  - win_df["Sales_Base"].values)
+                dates   = win_df["Date"].values
+
+            if orig_dc.sum() <= 0:
+                st.warning("No positive spike detected in this window — nothing to compress.")
+                return
+
+            # ── Apply compression ─────────────────────────────────────────
+            factor  = 1.0 - comp_pct / 100.0
+            comp_dc = orig_dc * factor
+            comp_dq = orig_dq * factor
+            comp_ds = orig_ds * factor
+
+            if smooth and len(comp_dc) >= 5:
+                n     = len(comp_dc)
+                sigma = max(n / 5.0, 1.0)
+                k     = np.arange(n)
+                taper = np.exp(-((k - n / 2) ** 2) / (2 * sigma ** 2))
+                taper = taper / taper.max()
+                comp_dc = np.maximum(0, comp_dc * taper)
+                comp_dq = np.maximum(0, comp_dq * taper)
+                comp_ds = np.maximum(0, comp_ds * taper)
+
+            # Store for save button
+            st.session_state["_comp_data"] = {
+                "dates":      [pd.Timestamp(d) for d in dates],
+                "orig_dc":    orig_dc.tolist(),
+                "comp_dc":    comp_dc.tolist(),
+                "comp_dq":    comp_dq.tolist(),
+                "comp_ds":    comp_ds.tolist(),
+                "comp_start": comp_s,
+                "comp_end":   comp_e,
+                "duration":   (comp_e - comp_s).days + 1,
+                "comp_pct":   comp_pct,
+            }
+
+        # ── Preview chart (always shown when data is ready) ───────────────
+        cd = st.session_state.get("_comp_data")
+        if cd and cd["comp_start"] == comp_s and cd["comp_end"] == comp_e:
+            ts = [d for d in cd["dates"]]
+
+            fig_c = go.Figure()
+            fig_c.add_trace(go.Scatter(
+                x=ts, y=cd["orig_dc"],
+                name="Original spike", mode="lines",
+                line=dict(color=_C_SIM, dash="dot", width=1.5)))
+            fig_c.add_trace(go.Scatter(
+                x=ts, y=cd["comp_dc"],
+                name=f"Compressed (−{cd['comp_pct']} %)", mode="lines",
+                fill="tozeroy", fillcolor="rgba(22,163,74,0.20)",
+                line=dict(color="#16a34a", width=2)))
+            fig_c.update_layout(
+                template=_TMPL, height=270,
+                title=f"Compression Preview — {cd['comp_pct']} % reduction",
+                hovermode="x unified", margin=dict(t=40, b=20))
+            st.plotly_chart(fig_c, use_container_width=True)
+
+            m1, m2 = st.columns(2)
+            orig_total = sum(cd["orig_dc"])
+            comp_total = sum(cd["comp_dc"])
+            m1.metric("Original Δ Clicks",    f"+{orig_total:,.0f}")
+            m2.metric("Compressed Δ Clicks",   f"+{comp_total:,.0f}",
+                      f"−{orig_total - comp_total:,.0f} removed")
+
+            sig_name = st.text_input(
+                "Signature name",
+                f"Compressed {comp_s}→{comp_e} (−{cd['comp_pct']} %)",
+                key="comp_signame",
+            )
+            if st.button("💾 Save Compressed Signature to Library",
+                         key="comp_save_btn", use_container_width=True):
+                dur        = cd["duration"]
+                arr_dc     = np.array(cd["comp_dc"])
+                arr_dq     = np.array(cd["comp_dq"])
+                arr_ds     = np.array(cd["comp_ds"])
+                floor_c_ref = max(arr_dc.mean() * 0.1, 1.0)
+                floor_q_ref = max(arr_dq.mean() * 0.1, 1.0)
+                floor_s_ref = max(arr_ds.mean() * 0.1, 1.0)
+                st.session_state.shock_library.append({
+                    "id":          str(time.time()),
+                    "name":        sig_name,
+                    "duration":    dur,
+                    "orig_start":  comp_s,
+                    "orig_end":    comp_e,
+                    "organic_cr":  0.0,
+                    "event_cr":    0.0,
+                    "cr_delta":    0.0,
+                    "tot_delta_c": float(arr_dc.sum()),
+                    "tot_delta_q": float(arr_dq.sum()),
+                    "tot_delta_s": float(arr_ds.sum()),
+                    "daily_abs_c": cd["comp_dc"],
+                    "daily_abs_q": cd["comp_dq"],
+                    "daily_abs_s": cd["comp_ds"],
+                    "daily_pct_c": (arr_dc / floor_c_ref).tolist(),
+                    "daily_pct_q": (arr_dq / floor_q_ref).tolist(),
+                    "daily_pct_s": (arr_ds / floor_s_ref).tolist(),
+                })
+                st.session_state.pop("_comp_data", None)
+                _un = st.session_state.get("_user_name", "Unknown")
+                _uu = st.session_state.get("_username", "")
+                log_action(
+                    name=_un, username=_uu,
+                    action="De-Shock Extracted",
+                    details=(
+                        f"Brand: {', '.join(sel_brands)} | Source: Compressor | "
+                        f"Signature: {sig_name} | Compression: {cd['comp_pct']} % | "
+                        f"Period: {comp_s} → {comp_e} ({dur}d) | "
+                        f"Δ Clicks: +{arr_dc.sum():,.0f}"
+                    ),
+                )
+                st.success(f"'{sig_name}' saved to Signature Library.")
+                st.rerun()
 
 
 # ── Audit & Gap Attribution ──────────────────────────────────────────────────

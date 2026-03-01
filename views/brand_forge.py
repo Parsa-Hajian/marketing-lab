@@ -320,7 +320,10 @@ def render_brand_forge(profiles: pd.DataFrame) -> None:
                         f"Total sales: €{_raw['Sales'].sum():,.0f}"
                     ),
                 )
-                st.success(msg + "  Reload the app to use the new brand in the Dashboard.")
+                st.cache_data.clear()   # force profiles reload → brand appears in DNA selector
+                st.success(
+                    msg + f"  **{saved_name}** now appears in the DNA Brands selector."
+                )
                 st.session_state.pop("forge_raw_df", None)
                 st.session_state.pop("forge_brand_name", None)
             else:
