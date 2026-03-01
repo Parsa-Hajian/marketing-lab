@@ -462,8 +462,6 @@ st.sidebar.markdown(
     f"font-size:0.9rem;color:#111111;letter-spacing:-0.01em'>Tech Strategy Lab</div>"
     f"<div style='font-family:Inter,sans-serif;font-size:0.68rem;color:#AAAAAA;"
     f"margin-top:2px;font-weight:400'>Analytics Platform</div>"
-    f"<div style='font-family:Inter,sans-serif;font-size:0.72rem;color:#555555;"
-    f"margin-top:6px;font-weight:500'>{st.session_state._user_name}</div>"
     f"</div>",
     unsafe_allow_html=True,
 )
@@ -621,13 +619,6 @@ if _is_analytics:
 
 # ── Sidebar footer ─────────────────────────────────────────────────────────────
 st.sidebar.divider()
-st.sidebar.markdown(
-    f"<p style='font-size:0.72rem;color:#CCCCCC;font-family:Inter,sans-serif;"
-    f"margin:0 0 10px;text-align:center'>"
-    f"<a href='mailto:{_EMAIL}' style='color:{_ORANGE};text-decoration:none'>"
-    f"{_EMAIL}</a></p>",
-    unsafe_allow_html=True,
-)
 if st.sidebar.button(t("sign_out", _lang), use_container_width=True):
     log_action(
         name=st.session_state._user_name,

@@ -1,7 +1,7 @@
 """User Log page — shows all recorded activity with rich snapshot rendering."""
 import json
 import streamlit as st
-from engine.activity_log import load_log
+from engine.activity_log import load_log, delete_log_entries
 
 
 def _render_login_snapshot(details_str: str):
@@ -68,6 +68,24 @@ def _render_login_snapshot(details_str: str):
         st.caption("No prior modifications recorded at login time.")
 
 
+def _border_for(action: str) -> str:
+    if action == "Login":                              return "#10B981"
+    if action == "Sign Out":                           return "#6B7280"
+    if action in ("Add Brand", "Brand Forge: Brand Saved"): return "#3B82F6"
+    if action in ("Update Brand", "Replace Brand"):    return "#F59E0B"
+    if action == "Campaign Injected":                  return "#F47920"
+    if action in ("DNA Swap", "DNA Drag"):             return "#8B5CF6"
+    if action in ("De-Shock Extracted", "De-Shock Re-Injected"): return "#EF4444"
+    if action in ("Event Deleted", "Event Log Cleared"): return "#DC2626"
+    if action == "Event Shifted":                      return "#0EA5E9"
+    if action.startswith("Settings") or action.startswith("Goal Tracker"): return "#6366F1"
+    if action == "Brand Forge: Preview Generated":     return "#A78BFA"
+    if action == "Page Navigation":                    return "#CBD5E1"
+    if action == "Resolution Changed":                 return "#94A3B8"
+    if action == "Brand Selection Changed":            return "#64748B"
+    return "#E0E0E0"
+
+
 def render_user_log():
     df = load_log()
 
@@ -104,11 +122,38 @@ def render_user_log():
     if sel_user   != "All": filtered = filtered[filtered["Name"]   == sel_user]
     if sel_action != "All": filtered = filtered[filtered["Action"] == sel_action]
 
+    n_shown = len(filtered)
     st.markdown(
         f"<div style='margin-bottom:8px;font-size:0.8rem;color:#999'>"
-        f"{len(filtered):,} events</div>",
+        f"{n_shown:,} events</div>",
         unsafe_allow_html=True,
     )
+
+    # ── Delete controls ────────────────────────────────────────────────────────
+    with st.expander("🗑️ Delete entries", expanded=False):
+        sel_all = st.checkbox("Select all visible entries", key="log_sel_all")
+
+        # Keep track of which display-row indices are checked
+        checked: list[int] = []
+        for pos, (disp_idx, row) in enumerate(filtered.iterrows()):
+            action = row["Action"]
+            ts     = row["Timestamp"]
+            name   = row["Name"]
+            label  = f"{ts}  ·  {action}  ·  {name}"
+            ticked = st.checkbox(label, value=sel_all, key=f"log_chk_{pos}_{disp_idx}")
+            if ticked:
+                checked.append(int(disp_idx))
+
+        if checked:
+            st.warning(f"{len(checked)} entr{'y' if len(checked)==1 else 'ies'} selected.")
+            if st.button("🗑️ Delete selected", type="primary", key="log_delete_btn"):
+                delete_log_entries(checked)
+                st.success(f"Deleted {len(checked)} entr{'y' if len(checked)==1 else 'ies'}.")
+                st.rerun()
+        else:
+            st.caption("Tick entries above then press Delete.")
+
+    st.markdown("---")
 
     # ── Render each event ─────────────────────────────────────────────────────
     for _, row in filtered.iterrows():
@@ -117,36 +162,6 @@ def render_user_log():
         name   = row["Name"]
         uname  = row["Username"]
         det    = str(row.get("Details", ""))
-
-        border = "#E0E0E0"
-        if action == "Login":
-            border = "#10B981"
-        elif action == "Sign Out":
-            border = "#6B7280"
-        elif action in ("Add Brand", "Brand Forge: Brand Saved"):
-            border = "#3B82F6"
-        elif action in ("Update Brand", "Replace Brand"):
-            border = "#F59E0B"
-        elif action == "Campaign Injected":
-            border = "#F47920"
-        elif action in ("DNA Swap", "DNA Drag"):
-            border = "#8B5CF6"
-        elif action in ("De-Shock Extracted", "De-Shock Re-Injected"):
-            border = "#EF4444"
-        elif action in ("Event Deleted", "Event Log Cleared"):
-            border = "#DC2626"
-        elif action == "Event Shifted":
-            border = "#0EA5E9"
-        elif action.startswith("Settings") or action.startswith("Goal Tracker"):
-            border = "#6366F1"
-        elif action == "Brand Forge: Preview Generated":
-            border = "#A78BFA"
-        elif action == "Page Navigation":
-            border = "#CBD5E1"
-        elif action == "Resolution Changed":
-            border = "#94A3B8"
-        elif action == "Brand Selection Changed":
-            border = "#64748B"
 
         with st.expander(f"{ts}  ·  **{action}**  ·  {name} ({uname})"):
             if action == "Login":

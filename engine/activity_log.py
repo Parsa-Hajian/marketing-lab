@@ -116,3 +116,20 @@ def load_log() -> pd.DataFrame:
         return pd.DataFrame(columns=_COLUMNS)
     df = pd.read_csv(LOG_PATH)
     return df.iloc[::-1].reset_index(drop=True)
+
+
+def delete_log_entries(display_indices: list[int]) -> None:
+    """Delete rows from the activity log by their display-order indices.
+
+    `display_indices` are positions in the newest-first DataFrame returned by
+    load_log().  They are converted back to original (oldest-first) row indices
+    before rewriting the CSV.
+    """
+    if not os.path.exists(LOG_PATH):
+        return
+    df = pd.read_csv(LOG_PATH)          # oldest-first, 0-based
+    n  = len(df)
+    # display index i → original index (n - 1 - i)
+    orig_indices = [n - 1 - i for i in display_indices if 0 <= i < n]
+    df = df.drop(index=orig_indices).reset_index(drop=True)
+    df.to_csv(LOG_PATH, index=False)
