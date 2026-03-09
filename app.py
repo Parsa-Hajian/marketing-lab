@@ -457,7 +457,7 @@ def load_data():
     profiles["Year"] = profiles["Year"].astype(str)
     yearly_kpis = pd.read_csv(YEARLY_KPI_PATH)
     df_raw      = pd.read_csv(DATASET_PATH)
-    df_raw["Date"]  = pd.to_datetime(df_raw["Date"])
+    df_raw["Date"]  = pd.to_datetime(df_raw["Date"], format="mixed", dayfirst=False)
     df_raw["brand"] = df_raw["brand"].str.strip().str.lower()
     return profiles, yearly_kpis, df_raw
 

@@ -127,6 +127,7 @@ def save_brand(
     profiles["brand"] = profiles["brand"].str.strip().str.lower()
     dataset  = pd.read_csv(dataset_path)
     dataset["brand"] = dataset["brand"].str.strip().str.lower()
+    dataset["Date"]  = pd.to_datetime(dataset["Date"])
 
     brand_exists = brand_key in profiles["brand"].unique()
 
@@ -154,9 +155,9 @@ def save_brand(
     )[["Date", "brand", "clicks", "quantity", "sales"]]
     dataset = pd.concat([dataset, raw_save], ignore_index=True)
 
-    # Save
+    # Save — enforce consistent YYYY-MM-DD date format
     profiles.to_csv(profiles_path, index=False)
-    dataset.to_csv(dataset_path,   index=False)
+    dataset.to_csv(dataset_path, index=False, date_format="%Y-%m-%d")
 
     action = "updated" if brand_exists else "added"
     return True, f"Brand '{brand_key}' {action} — {len(raw_df):,} rows processed."
