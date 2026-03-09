@@ -2,15 +2,23 @@
 
 _T = {
     "en": {
-        # Navigation
-        "nav_dashboard":       "Dashboard",
-        "nav_sim_lab":         "Simulation Lab",
+        # Navigation — Sequential Workflow (8 steps)
+        "nav_brand_select":    "Brand Selection",
+        "nav_edit_dna":        "Edit DNA",
+        "nav_trial_data":      "Trial Data",
+        "nav_goal_tracker":    "Goal Tracker",
+        "nav_campaigns":       "Campaigns",
+        "nav_risk":            "Risk & Uncertainty",
+        "nav_audit":           "Audit & Attribution",
+        "nav_download":        "Download Strategy",
+        # Navigation — Other
         "nav_add_brand":       "Add Brand",
         "nav_update_brand":    "Update Brand",
         "nav_settings":        "Settings",
         "nav_user_log":        "User Log",
         "nav_docs":            "Documentation",
         "nav_forge":           "Design New Brand",
+        "nav_monitor":         "Monitor",
         # Auth
         "full_name":           "Full Name",
         "username":            "Username",
@@ -21,15 +29,22 @@ _T = {
         "name_placeholder":    "e.g. Parsa Hajiannejad",
         "invalid_credentials": "Invalid username or password.",
         "name_required":       "Please enter your full name.",
-        # Page subtitles
-        "sub_dashboard":       "Overview of projections, DNA, and goal tracking",
-        "sub_sim_lab":         "Inject events, shocks, and campaign simulations",
+        # Page subtitles — Sequential Workflow
+        "sub_brand_select":    "Step 1 — Select brands for DNA analysis",
+        "sub_edit_dna":        "Step 2 — Swap, sculpt, and visualize DNA modifications",
+        "sub_trial_data":      "Step 3 — Enter trial metrics and calibrate",
+        "sub_goal_tracker":    "Step 4 — Set targets, view forecast, and track the gap",
+        "sub_campaigns":       "Step 5 — Inject time-bound campaign events",
+        "sub_risk":            "Step 6 — Multi-model forecast risk and confidence bands",
+        "sub_audit":           "Step 7 — Review all active modifications and their impact",
+        "sub_download":        "Step 8 — Export the complete strategy report",
         "sub_add_brand":       "Upload historical data to create a new brand profile",
         "sub_update_brand":    "Replace or extend data for an existing brand",
         "sub_settings":        "Language, campaign defaults, and app configuration",
         "sub_user_log":        "Activity log — modifications and people who made them",
         "sub_docs":            "Models, formulas, assumptions, and complete usage guide",
         "sub_forge":           "Synthesise a new brand from DNA inheritance, seasonal shaping, and volume targets",
+        "sub_monitor":         "Brand dashboard — explore historical data and model-based forecasts",
         # Settings page
         "settings_language":   "Language",
         "settings_lang_en":    "English",
@@ -69,15 +84,23 @@ _T = {
         "dna_work":            "Work / After",
     },
     "it": {
-        # Navigation
-        "nav_dashboard":       "Dashboard",
-        "nav_sim_lab":         "Laboratorio Simulazione",
+        # Navigation — Sequential Workflow (8 steps)
+        "nav_brand_select":    "Selezione Brand",
+        "nav_edit_dna":        "Modifica DNA",
+        "nav_trial_data":      "Dati Trial",
+        "nav_goal_tracker":    "Obiettivi",
+        "nav_campaigns":       "Campagne",
+        "nav_risk":            "Rischio & Incertezza",
+        "nav_audit":           "Audit & Attribuzione",
+        "nav_download":        "Scarica Strategia",
+        # Navigation — Other
         "nav_add_brand":       "Aggiungi Brand",
         "nav_update_brand":    "Aggiorna Brand",
         "nav_settings":        "Impostazioni",
         "nav_user_log":        "Registro Attività",
         "nav_docs":            "Documentazione",
         "nav_forge":           "Design New Brand",
+        "nav_monitor":         "Monitor",
         # Auth
         "full_name":           "Nome Completo",
         "username":            "Nome Utente",
@@ -88,15 +111,22 @@ _T = {
         "name_placeholder":    "es. Mario Rossi",
         "invalid_credentials": "Nome utente o password non validi.",
         "name_required":       "Inserisci il tuo nome completo.",
-        # Page subtitles
-        "sub_dashboard":       "Panoramica di proiezioni, DNA e monitoraggio obiettivi",
-        "sub_sim_lab":         "Inietta eventi, shock e simulazioni di campagna",
+        # Page subtitles — Sequential Workflow
+        "sub_brand_select":    "Passo 1 — Seleziona i brand per l'analisi DNA",
+        "sub_edit_dna":        "Passo 2 — Scambia, modella e visualizza le modifiche DNA",
+        "sub_trial_data":      "Passo 3 — Inserisci metriche trial e calibra",
+        "sub_goal_tracker":    "Passo 4 — Imposta obiettivi, visualizza previsione e monitora il gap",
+        "sub_campaigns":       "Passo 5 — Inietta eventi campagna temporizzati",
+        "sub_risk":            "Passo 6 — Rischio previsionale multi-modello e bande di confidenza",
+        "sub_audit":           "Passo 7 — Rivedi tutte le modifiche attive e il loro impatto",
+        "sub_download":        "Passo 8 — Esporta il report strategico completo",
         "sub_add_brand":       "Carica dati storici per creare un nuovo profilo brand",
         "sub_update_brand":    "Sostituisci o estendi i dati per un brand esistente",
         "sub_settings":        "Lingua, impostazioni predefinite campagne e configurazione",
         "sub_user_log":        "Registro attività — modifiche e chi le ha effettuate",
         "sub_docs":            "Modelli, formule, ipotesi e guida completa all'uso",
         "sub_forge":           "Sintetizza un nuovo brand da DNA ereditato, stagionalità e obiettivi di volume",
+        "sub_monitor":         "Dashboard brand — esplora dati storici e previsioni basate su modelli",
         # Settings page
         "settings_language":   "Lingua",
         "settings_lang_en":    "Inglese",
