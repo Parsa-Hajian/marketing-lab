@@ -98,6 +98,8 @@ def render_goal_tracker(df, df_raw, profiles, yearly_kpis, sel_brands,
     def _reset():
         st.session_state.tgt_start = _d(2026, 1, 1)
         st.session_state.tgt_end = _d(2026, 12, 31)
+        st.session_state.ui_tgt_start = _d(2026, 1, 1)
+        st.session_state.ui_tgt_end = _d(2026, 12, 31)
         st.session_state.target_metric = "Sales"
         st.session_state.target_val = 200_000.0
         st.session_state.gt_hist_year = None
@@ -105,6 +107,10 @@ def render_goal_tracker(df, df_raw, profiles, yearly_kpis, sel_brands,
         st.session_state.gt_growth_pct = 5.0
         st.session_state.gt_vol_driver = "Traffic (Clicks)"
         st.session_state.step_completed["nav_goal_tracker"] = False
+        # Clear persisted goal tracker values
+        _pi = st.session_state.get("_persisted_inputs", {})
+        for k in ["tgt_start", "tgt_end", "target_metric", "target_val"]:
+            _pi.pop(k, None)
         st.toast("Goal tracker reset to defaults.")
         st.rerun()
 
@@ -272,11 +278,17 @@ def render_goal_tracker(df, df_raw, profiles, yearly_kpis, sel_brands,
         st.markdown("---")
 
     # ── Target period selection (trial dates prohibited) ──
+    # Pre-populate widget keys from backing vars (survives widget-key cleanup)
+    if "ui_tgt_start" not in st.session_state:
+        st.session_state.ui_tgt_start = st.session_state.tgt_start
+    if "ui_tgt_end" not in st.session_state:
+        st.session_state.ui_tgt_end = st.session_state.tgt_end
+
     col_d1, col_d2 = st.columns(2)
-    st.session_state.tgt_start = col_d1.date_input(
-        "Target Period Start", st.session_state.tgt_start)
-    st.session_state.tgt_end   = col_d2.date_input(
-        "Target Period End",   st.session_state.tgt_end)
+    col_d1.date_input("Target Period Start", key="ui_tgt_start")
+    st.session_state.tgt_start = st.session_state.ui_tgt_start
+    col_d2.date_input("Target Period End", key="ui_tgt_end")
+    st.session_state.tgt_end = st.session_state.ui_tgt_end
 
     # Trial exclusion check
     if (st.session_state.tgt_start <= trial_end and
@@ -318,7 +330,7 @@ def render_goal_tracker(df, df_raw, profiles, yearly_kpis, sel_brands,
         )
     elif st.session_state.target_metric == "AOV":
         st.session_state.target_val = col_m3.number_input(
-            "Desired AOV (€)",
+            "Desired AOV (\u20ac)",
             value=float(calculated_target if len(sel_brands) == 1 else st.session_state.target_val),
             step=1.0,
         )
@@ -350,6 +362,13 @@ def render_goal_tracker(df, df_raw, profiles, yearly_kpis, sel_brands,
                 f"Volume driver: {volume_driver}"
             ),
         )
+        # Persist for navigation resilience
+        st.session_state._persisted_inputs.update({
+            "tgt_start":     st.session_state.tgt_start,
+            "tgt_end":       st.session_state.tgt_end,
+            "target_metric": st.session_state.target_metric,
+            "target_val":    st.session_state.target_val,
+        })
         st.toast("Goal Tracker settings saved.", icon="✅")
 
     # ── Forecast Model Selection ──────────────────────────────────────────
@@ -704,6 +723,13 @@ def render_goal_tracker(df, df_raw, profiles, yearly_kpis, sel_brands,
     st.markdown("---")
     if st.button("Confirm Goal Tracker →", type="primary", use_container_width=True):
         st.session_state.step_completed["nav_goal_tracker"] = True
+        # Persist for navigation resilience
+        st.session_state._persisted_inputs.update({
+            "tgt_start":     st.session_state.tgt_start,
+            "tgt_end":       st.session_state.tgt_end,
+            "target_metric": st.session_state.target_metric,
+            "target_val":    st.session_state.target_val,
+        })
         log_action(
             name=st.session_state.get("_user_name", "Unknown"),
             username=st.session_state.get("_username", ""),

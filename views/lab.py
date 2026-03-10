@@ -435,7 +435,47 @@ def _run_trial_calibration(profiles, sel_brands, df_raw):
     cache["t_end"] = t_end
     cache["df_raw_mod"] = df_raw_use
     cache["profiles_mod"] = profiles_use
+
+    # Persist trial inputs so they survive Streamlit widget-key cleanup
+    st.session_state._persisted_inputs.update({
+        "ui_t_start":    t_start,
+        "ui_t_end":      t_end,
+        "ui_c_val":      c_val,
+        "ui_q_val":      q_val,
+        "ui_s_val":      s_val,
+        "ui_adj_c":      st.session_state.ui_adj_c,
+        "ui_adj_q":      st.session_state.ui_adj_q,
+        "ui_adj_s":      st.session_state.ui_adj_s,
+        "ui_trial_mode": st.session_state.get("ui_trial_mode", "enter"),
+    })
     return True
+
+
+def _compute_historical_autofill(df_raw, sel_brands):
+    """Find the most recent complete year for selected brands and sum metrics.
+
+    Returns (year, clicks_total, qty_total, sales_total) or None.
+    """
+    brand_data = df_raw[df_raw["brand"].isin(sel_brands)].copy()
+    if brand_data.empty:
+        return None
+    brand_data["_year"] = brand_data["Date"].dt.year
+    # A "complete year" must have data in all 12 months
+    month_counts = (
+        brand_data.groupby("_year")["Date"]
+        .apply(lambda s: s.dt.month.nunique())
+    )
+    complete_years = month_counts[month_counts == 12].index.tolist()
+    if not complete_years:
+        return None
+    best_year = max(complete_years)
+    yd = brand_data[brand_data["_year"] == best_year]
+    return (
+        best_year,
+        float(yd["clicks"].sum()),
+        float(yd["quantity"].sum()),
+        float(yd["sales"].sum()),
+    )
 
 
 def render_trial_data(profiles, all_brands, min_data_yr, max_data_yr, df_raw):
@@ -457,6 +497,7 @@ def render_trial_data(profiles, all_brands, min_data_yr, max_data_yr, df_raw):
             "ui_adj_c": st.session_state.ui_adj_c,
             "ui_adj_q": st.session_state.ui_adj_q,
             "ui_adj_s": st.session_state.ui_adj_s,
+            "ui_trial_mode": st.session_state.ui_trial_mode,
         }
 
     def _undo():
@@ -476,41 +517,101 @@ def render_trial_data(profiles, all_brands, min_data_yr, max_data_yr, df_raw):
         st.session_state.ui_adj_c = 0.0
         st.session_state.ui_adj_q = 0.0
         st.session_state.ui_adj_s = 0.0
+        st.session_state.ui_trial_mode = "enter"
         st.session_state.step_completed["nav_trial_data"] = False
+        # Clear persisted trial values
+        _pi = st.session_state.get("_persisted_inputs", {})
+        for k in ["ui_t_start", "ui_t_end", "ui_c_val", "ui_q_val", "ui_s_val",
+                   "ui_adj_c", "ui_adj_q", "ui_adj_s", "ui_trial_mode"]:
+            _pi.pop(k, None)
         st.toast("Trial data reset to defaults.")
         st.rerun()
 
     _render_step_toolbar("nav_trial_data", _undo, _reset)
 
-    st.markdown("##### Trial Reality")
-    st.caption("Enter the observed metrics from your trial period for calibration.")
+    # ── Trial mode selector ──
+    _mode_options = ["Enter Trial Data", "Skip — Use Last Year's Data"]
+    _mode_idx = 1 if st.session_state.ui_trial_mode == "skip" else 0
+    trial_mode = st.radio(
+        "Calibration Mode", _mode_options, index=_mode_idx,
+        horizontal=True, key="ui_trial_mode_radio",
+    )
+    is_skip = trial_mode.startswith("Skip")
+    st.session_state.ui_trial_mode = "skip" if is_skip else "enter"
 
-    col_d1, col_d2 = st.columns(2)
-    t_start = col_d1.date_input("Start Date", key="ui_t_start")
-    t_end   = col_d2.date_input("End Date",   key="ui_t_end")
+    st.markdown("---")
 
-    if t_start.year < min_data_yr or t_end.year > max_data_yr + 2:
-        st.warning(f"Outside data range ({min_data_yr}–{max_data_yr}).")
+    if is_skip:
+        # ── Auto-fill from last complete year ──
+        result = _compute_historical_autofill(df_raw, sel_brands)
+        if result is None:
+            st.error(
+                "No complete year of data found for the selected brands. "
+                "Please enter trial data manually."
+            )
+            return
 
-    col_m1, col_m2, col_m3 = st.columns(3)
-    c_val = col_m1.number_input("Clicks",   min_value=0.0, key="ui_c_val")
-    q_val = col_m2.number_input("Quantity", min_value=0.0, key="ui_q_val")
-    s_val = col_m3.number_input("Sales",    min_value=0.0, key="ui_s_val")
+        hist_year, hist_clicks, hist_qty, hist_sales = result
+        st.info(
+            f"Calibrating with **{hist_year}** full-year historical data. "
+            "No trial input needed."
+        )
+        col_v1, col_v2, col_v3 = st.columns(3)
+        col_v1.metric("Clicks", f"{hist_clicks:,.0f}")
+        col_v2.metric("Quantity", f"{hist_qty:,.0f}")
+        col_v3.metric("Sales", f"\u20ac{hist_sales:,.0f}")
 
-    # ── Pre-Adjustment ──
-    with st.expander("Pre-Adjustment", expanded=False):
-        st.caption("+ % = boosted trial (strip lift).  − % = suppressed (add lift back).")
-        ac1, ac2, ac3 = st.columns(3)
-        ac1.number_input("Clicks adj (%)",   -100.0, 500.0, key="ui_adj_c", step=5.0)
-        ac2.number_input("Quantity adj (%)", -100.0, 500.0, key="ui_adj_q", step=5.0)
-        ac3.number_input("Sales adj (%)",    -100.0, 500.0, key="ui_adj_s", step=5.0)
+        st.caption(
+            f"Trial period: **Jan 1 \u2013 Dec 31, {hist_year}**. "
+            "The pipeline will calibrate using this full year of observed data."
+        )
+
+        # Auto-fill session state
+        from datetime import date as _d
+        st.session_state.ui_t_start = _d(hist_year, 1, 1)
+        st.session_state.ui_t_end   = _d(hist_year, 12, 31)
+        st.session_state.ui_c_val   = hist_clicks
+        st.session_state.ui_q_val   = hist_qty
+        st.session_state.ui_s_val   = hist_sales
+        st.session_state.ui_adj_c   = 0.0
+        st.session_state.ui_adj_q   = 0.0
+        st.session_state.ui_adj_s   = 0.0
+
+        t_start = st.session_state.ui_t_start
+        t_end   = st.session_state.ui_t_end
+        c_val   = hist_clicks
+        q_val   = hist_qty
+        s_val   = hist_sales
+    else:
+        # ── Manual trial entry (existing UI) ──
+        st.markdown("##### Trial Reality")
+        st.caption("Enter the observed metrics from your trial period for calibration.")
+
+        col_d1, col_d2 = st.columns(2)
+        t_start = col_d1.date_input("Start Date", key="ui_t_start")
+        t_end   = col_d2.date_input("End Date",   key="ui_t_end")
+
+        if t_start.year < min_data_yr or t_end.year > max_data_yr + 2:
+            st.warning(f"Outside data range ({min_data_yr}\u2013{max_data_yr}).")
+
+        col_m1, col_m2, col_m3 = st.columns(3)
+        c_val = col_m1.number_input("Clicks",   min_value=0.0, key="ui_c_val")
+        q_val = col_m2.number_input("Quantity", min_value=0.0, key="ui_q_val")
+        s_val = col_m3.number_input("Sales",    min_value=0.0, key="ui_s_val")
+
+        # ── Pre-Adjustment ──
+        with st.expander("Pre-Adjustment", expanded=False):
+            st.caption("+ % = boosted trial (strip lift).  \u2212 % = suppressed (add lift back).")
+            ac1, ac2, ac3 = st.columns(3)
+            ac1.number_input("Clicks adj (%)",   -100.0, 500.0, key="ui_adj_c", step=5.0)
+            ac2.number_input("Quantity adj (%)", -100.0, 500.0, key="ui_adj_q", step=5.0)
+            ac3.number_input("Sales adj (%)",    -100.0, 500.0, key="ui_adj_s", step=5.0)
 
     st.markdown("---")
 
     # ── DNA Weights Preview ──
     if c_val > 0 or q_val > 0 or s_val > 0:
         proj_year = str(t_start.year)
-        # Use swapped profiles for weight preview if swaps exist
         _swap_evs = [
             e for e in st.session_state.event_log
             if e.get("type") == "swap" and e.get("scope") == "pre_trial"
@@ -523,7 +624,7 @@ def render_trial_data(profiles, all_brands, min_data_yr, max_data_yr, df_raw):
             _profiles_preview, sel_brands, proj_year, t_start, t_end, c_val, q_val, s_val)
 
         st.markdown("##### DNA Weights")
-        st.caption("35% — All-time overall")
+        st.caption("35% \u2014 All-time overall")
         w_cols = st.columns(min(len(norm_weights), 5))
         for i, (y, w) in enumerate(norm_weights.items()):
             w_cols[i % len(w_cols)].metric(f"Year {y}", f"{w * 65.0:.1f}%")
@@ -531,14 +632,16 @@ def render_trial_data(profiles, all_brands, min_data_yr, max_data_yr, df_raw):
     st.markdown("---")
 
     # ── Confirm & Calibrate ──
-    if st.button("Confirm & Calibrate →", type="primary", use_container_width=True):
+    if st.button("Confirm & Calibrate \u2192", type="primary", use_container_width=True):
         if _run_trial_calibration(profiles, sel_brands, df_raw):
+            _mode_label = "Skip (Historical)" if is_skip else "Manual Entry"
             log_action(
                 name=_user_name, username=_username,
                 action="Trial Data Completed",
                 details=(
                     f"Brands: {', '.join(sel_brands)} | "
-                    f"Trial: {t_start} → {t_end} | "
+                    f"Mode: {_mode_label} | "
+                    f"Trial: {t_start} \u2192 {t_end} | "
                     f"Clicks: {c_val:,.0f} | Qty: {q_val:,.0f} | Sales: {s_val:,.0f}"
                 ),
             )

@@ -413,19 +413,28 @@ st.markdown(_CSS, unsafe_allow_html=True)
 # ─── SESSION STATE ─────────────────────────────────────────────────────────────
 if "event_log"          not in st.session_state: st.session_state.event_log          = []
 if "shift_target_idx"   not in st.session_state: st.session_state.shift_target_idx   = None
-if "tgt_start"          not in st.session_state: st.session_state.tgt_start          = date(2026, 1, 1)
-if "tgt_end"            not in st.session_state: st.session_state.tgt_end            = date(2026, 12, 31)
-if "target_metric"      not in st.session_state: st.session_state.target_metric      = "Sales"
-if "target_val"         not in st.session_state: st.session_state.target_val         = 200_000.0
+
+# Persistent backing dict — survives Streamlit widget-key cleanup
+if "_persisted_inputs"  not in st.session_state: st.session_state._persisted_inputs  = {}
+_pi = st.session_state._persisted_inputs
+
+# Goal tracker inputs (restore from backing dict if widget keys were cleaned up)
+if "tgt_start"          not in st.session_state: st.session_state.tgt_start          = _pi.get("tgt_start",     date(2026, 1, 1))
+if "tgt_end"            not in st.session_state: st.session_state.tgt_end            = _pi.get("tgt_end",       date(2026, 12, 31))
+if "target_metric"      not in st.session_state: st.session_state.target_metric      = _pi.get("target_metric", "Sales")
+if "target_val"         not in st.session_state: st.session_state.target_val         = _pi.get("target_val",    200_000.0)
 if "ui_res_level"       not in st.session_state: st.session_state.ui_res_level       = "Monthly"
-if "ui_t_start"         not in st.session_state: st.session_state.ui_t_start         = date(2026, 1, 1)
-if "ui_t_end"           not in st.session_state: st.session_state.ui_t_end           = date(2026, 1, 31)
-if "ui_c_val"           not in st.session_state: st.session_state.ui_c_val           = 5_000.0
-if "ui_q_val"           not in st.session_state: st.session_state.ui_q_val           = 250.0
-if "ui_s_val"           not in st.session_state: st.session_state.ui_s_val           = 12_500.0
-if "ui_adj_c"           not in st.session_state: st.session_state.ui_adj_c           = 0.0
-if "ui_adj_q"           not in st.session_state: st.session_state.ui_adj_q           = 0.0
-if "ui_adj_s"           not in st.session_state: st.session_state.ui_adj_s           = 0.0
+
+# Trial data inputs (restore from backing dict)
+if "ui_trial_mode"      not in st.session_state: st.session_state.ui_trial_mode      = _pi.get("ui_trial_mode", "enter")
+if "ui_t_start"         not in st.session_state: st.session_state.ui_t_start         = _pi.get("ui_t_start",    date(2026, 1, 1))
+if "ui_t_end"           not in st.session_state: st.session_state.ui_t_end           = _pi.get("ui_t_end",      date(2026, 1, 31))
+if "ui_c_val"           not in st.session_state: st.session_state.ui_c_val           = _pi.get("ui_c_val",      5_000.0)
+if "ui_q_val"           not in st.session_state: st.session_state.ui_q_val           = _pi.get("ui_q_val",      250.0)
+if "ui_s_val"           not in st.session_state: st.session_state.ui_s_val           = _pi.get("ui_s_val",      12_500.0)
+if "ui_adj_c"           not in st.session_state: st.session_state.ui_adj_c           = _pi.get("ui_adj_c",      0.0)
+if "ui_adj_q"           not in st.session_state: st.session_state.ui_adj_q           = _pi.get("ui_adj_q",      0.0)
+if "ui_adj_s"           not in st.session_state: st.session_state.ui_adj_s           = _pi.get("ui_adj_s",      0.0)
 if "ui_sel_brands"      not in st.session_state: st.session_state.ui_sel_brands      = []
 
 # Per-step completion tracking
