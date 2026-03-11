@@ -46,6 +46,34 @@ def render_brand_update():
     levels_present = sorted(brand_profiles["Level"].unique())
     years_present  = sorted([y for y in brand_profiles["Year"].unique() if y != "Overall"])
 
+    # Load raw data for date range info
+    try:
+        _existing_raw = load_raw_for_brand(brand_key, DATASET_PATH)
+    except Exception:
+        _existing_raw = pd.DataFrame()
+
+    if not _existing_raw.empty:
+        _min_date = _existing_raw["Date"].min().date()
+        _max_date = _existing_raw["Date"].max().date()
+        _next_date = _max_date + pd.Timedelta(days=1)
+        _date_info = (
+            f"<b>Date range:</b> {_min_date} \u2192 {_max_date}<br>"
+            f"<b>Rows:</b> {len(_existing_raw):,}<br>"
+            f"<b>Levels:</b> {', '.join(levels_present)}"
+        )
+        _next_info = (
+            f"<div style='margin-top:8px;padding:8px 12px;background:#E8F5E9;"
+            f"border-radius:6px;font-size:0.85rem'>"
+            f"Upload new data starting from <b>{_next_date}</b>"
+            f"</div>"
+        )
+    else:
+        _date_info = (
+            f"<b>Levels:</b> {', '.join(levels_present)}<br>"
+            f"<b>Years:</b> {', '.join(years_present) if years_present else '\u2014'}"
+        )
+        _next_info = ""
+
     with col_info:
         st.markdown(
             f"<div style='background:#F5F5F5;border-radius:8px;"
@@ -53,9 +81,10 @@ def render_brand_update():
             f"<div style='font-size:0.75rem;color:#888;font-weight:600;"
             f"text-transform:uppercase;letter-spacing:0.05em'>Current data</div>"
             f"<div style='font-size:0.88rem;color:#111;margin-top:6px'>"
-            f"<b>Levels:</b> {', '.join(levels_present)}<br>"
-            f"<b>Years:</b> {', '.join(years_present) if years_present else '—'}"
-            f"</div></div>",
+            f"{_date_info}"
+            f"</div>"
+            f"{_next_info}"
+            f"</div>",
             unsafe_allow_html=True,
         )
 
@@ -75,17 +104,13 @@ def render_brand_update():
     )
 
     # Show current raw data preview for context
-    try:
-        existing_raw = load_raw_for_brand(brand_key, DATASET_PATH)
-        if not existing_raw.empty:
-            with st.expander(f"Current data — {len(existing_raw):,} rows"):
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Clicks",   f"{existing_raw['Clicks'].sum():,.0f}")
-                c2.metric("Quantity", f"{existing_raw['Quantity'].sum():,.0f}")
-                c3.metric("Sales",    f"€{existing_raw['Sales'].sum():,.0f}")
-                st.dataframe(existing_raw.head(20), use_container_width=True)
-    except Exception:
-        pass
+    if not _existing_raw.empty:
+        with st.expander(f"Current data — {len(_existing_raw):,} rows"):
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Clicks",   f"{_existing_raw['Clicks'].sum():,.0f}")
+            c2.metric("Quantity", f"{_existing_raw['Quantity'].sum():,.0f}")
+            c3.metric("Sales",    f"\u20ac{_existing_raw['Sales'].sum():,.0f}")
+            st.dataframe(_existing_raw.tail(20), use_container_width=True)
 
     # ── Granularity ───────────────────────────────────────────────────────────
     st.markdown("**Recompute DNA at**")
