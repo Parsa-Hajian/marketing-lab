@@ -451,27 +451,23 @@ def _run_trial_calibration(profiles, sel_brands, df_raw):
     return True
 
 
-def _compute_historical_autofill(df_raw, sel_brands):
-    """Find the most recent complete year for selected brands and sum metrics.
+def _detect_uploaded_trial(df_raw, sel_brands):
+    """Detect trial data uploaded via Update Brand for the selected brands.
 
-    Returns (year, clicks_total, qty_total, sales_total) or None.
+    Looks at the most recent year of data for the selected brands.
+    Returns (start_date, end_date, clicks, qty, sales) or None.
     """
     brand_data = df_raw[df_raw["brand"].isin(sel_brands)].copy()
     if brand_data.empty:
         return None
     brand_data["_year"] = brand_data["Date"].dt.year
-    # A "complete year" must have data in all 12 months
-    month_counts = (
-        brand_data.groupby("_year")["Date"]
-        .apply(lambda s: s.dt.month.nunique())
-    )
-    complete_years = month_counts[month_counts == 12].index.tolist()
-    if not complete_years:
+    latest_year = int(brand_data["_year"].max())
+    yd = brand_data[brand_data["_year"] == latest_year]
+    if yd.empty:
         return None
-    best_year = max(complete_years)
-    yd = brand_data[brand_data["_year"] == best_year]
     return (
-        best_year,
+        yd["Date"].min().date(),
+        yd["Date"].max().date(),
         float(yd["clicks"].sum()),
         float(yd["quantity"].sum()),
         float(yd["sales"].sum()),
@@ -530,58 +526,53 @@ def render_trial_data(profiles, all_brands, min_data_yr, max_data_yr, df_raw):
     _render_step_toolbar("nav_trial_data", _undo, _reset)
 
     # ── Trial mode selector ──
-    _mode_options = ["Enter Trial Data", "Skip — Use Last Year's Data"]
-    _mode_idx = 1 if st.session_state.ui_trial_mode == "skip" else 0
+    _mode_options = ["Enter Manually", "Auto-fill from Brand Data"]
+    _mode_idx = 1 if st.session_state.ui_trial_mode == "auto" else 0
     trial_mode = st.radio(
-        "Calibration Mode", _mode_options, index=_mode_idx,
+        "Trial Data Input", _mode_options, index=_mode_idx,
         horizontal=True, key="ui_trial_mode_radio",
     )
-    is_skip = trial_mode.startswith("Skip")
-    st.session_state.ui_trial_mode = "skip" if is_skip else "enter"
+    is_auto = trial_mode.startswith("Auto")
+    st.session_state.ui_trial_mode = "auto" if is_auto else "enter"
 
     st.markdown("---")
 
-    if is_skip:
-        # ── Auto-fill from last complete year ──
-        result = _compute_historical_autofill(df_raw, sel_brands)
+    if is_auto:
+        # ── Auto-fill from uploaded brand data ──
+        result = _detect_uploaded_trial(df_raw, sel_brands)
         if result is None:
             st.error(
-                "No complete year of data found for the selected brands. "
-                "Please enter trial data manually."
+                "No data found for the selected brands. "
+                "Upload trial data via **Update Brand** first, or enter manually."
             )
             return
 
-        hist_year, hist_clicks, hist_qty, hist_sales = result
+        det_start, det_end, det_clicks, det_qty, det_sales = result
         st.info(
-            f"Calibrating with **{hist_year}** full-year historical data. "
-            "No trial input needed."
+            f"Detected data: **{det_start}** to **{det_end}** "
+            f"({(det_end - det_start).days + 1} days). "
+            "Review below and click Confirm & Calibrate."
         )
         col_v1, col_v2, col_v3 = st.columns(3)
-        col_v1.metric("Clicks", f"{hist_clicks:,.0f}")
-        col_v2.metric("Quantity", f"{hist_qty:,.0f}")
-        col_v3.metric("Sales", f"\u20ac{hist_sales:,.0f}")
-
-        st.caption(
-            f"Trial period: **Jan 1 \u2013 Dec 31, {hist_year}**. "
-            "The pipeline will calibrate using this full year of observed data."
-        )
+        col_v1.metric("Clicks", f"{det_clicks:,.0f}")
+        col_v2.metric("Quantity", f"{det_qty:,.0f}")
+        col_v3.metric("Sales", f"\u20ac{det_sales:,.0f}")
 
         # Auto-fill session state
-        from datetime import date as _d
-        st.session_state.ui_t_start = _d(hist_year, 1, 1)
-        st.session_state.ui_t_end   = _d(hist_year, 12, 31)
-        st.session_state.ui_c_val   = hist_clicks
-        st.session_state.ui_q_val   = hist_qty
-        st.session_state.ui_s_val   = hist_sales
+        st.session_state.ui_t_start = det_start
+        st.session_state.ui_t_end   = det_end
+        st.session_state.ui_c_val   = det_clicks
+        st.session_state.ui_q_val   = det_qty
+        st.session_state.ui_s_val   = det_sales
         st.session_state.ui_adj_c   = 0.0
         st.session_state.ui_adj_q   = 0.0
         st.session_state.ui_adj_s   = 0.0
 
-        t_start = st.session_state.ui_t_start
-        t_end   = st.session_state.ui_t_end
-        c_val   = hist_clicks
-        q_val   = hist_qty
-        s_val   = hist_sales
+        t_start = det_start
+        t_end   = det_end
+        c_val   = det_clicks
+        q_val   = det_qty
+        s_val   = det_sales
     else:
         # ── Manual trial entry (existing UI) ──
         st.markdown("##### Trial Reality")
@@ -634,7 +625,7 @@ def render_trial_data(profiles, all_brands, min_data_yr, max_data_yr, df_raw):
     # ── Confirm & Calibrate ──
     if st.button("Confirm & Calibrate \u2192", type="primary", use_container_width=True):
         if _run_trial_calibration(profiles, sel_brands, df_raw):
-            _mode_label = "Skip (Historical)" if is_skip else "Manual Entry"
+            _mode_label = "Auto-fill (Brand Data)" if is_auto else "Manual Entry"
             log_action(
                 name=_user_name, username=_username,
                 action="Trial Data Completed",
